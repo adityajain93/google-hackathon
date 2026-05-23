@@ -106,13 +106,16 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
             if feed_type == 'zoo':
                 cams = zoo_feed.get_devices()
                 last_updated = time.time()
+                is_loading = False
             else:
                 cams = caltrans_feed.get_devices()
                 last_updated = caltrans_feed.last_update_time
+                is_loading = not caltrans_feed.first_update_done
                 
             response_data = {
                 'last_updated': last_updated,
-                'cameras': cams
+                'cameras': cams,
+                'is_loading': is_loading
             }
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return

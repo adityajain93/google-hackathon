@@ -3,6 +3,7 @@ let currentFeed = 'traffic';
 let cameras = [];
 let filteredCameras = [];
 let selectedCameraId = null;
+let isLoadingStateActive = false;
 
 
 // DOM Elements
@@ -52,12 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Fetch Camera/Node List from Server API
 async function fetchCameras() {
-    showLoadingState();
+    if (!isLoadingStateActive) {
+        showLoadingState();
+        isLoadingStateActive = true;
+    }
     try {
         const response = await fetch(`/api/cameras?feed=${currentFeed}`);
         if (!response.ok) throw new Error('Network response was not ok');
         
         const data = await response.json();
+        
+        if (data.is_loading) {
+            setTimeout(fetchCameras, 1500);
+            return;
+        }
+        
+        isLoadingStateActive = false;
         cameras = data.cameras || [];
         filteredCameras = [...cameras];
         
@@ -66,6 +77,7 @@ async function fetchCameras() {
         renderApp();
     } catch (error) {
         console.error('Error fetching camera data:', error);
+        isLoadingStateActive = false;
         showErrorState();
     }
 }
@@ -89,9 +101,10 @@ function showLoadingState() {
         <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
     `;
     cameraGallery.innerHTML = `
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
+        <div class="empty-state" style="padding: 5rem 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; width: 100%; grid-column: 1 / -1;">
+            <div class="labs-spinner" style="width: 40px; height: 40px; border-width: 3px;"></div>
+            <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; letter-spacing: 0.05em;">FETCHING LIVE CCTV FEEDS...</span>
+        </div>
     `;
 }
 
@@ -196,6 +209,7 @@ function handleFeedSwitch() {
     // Clear search filter state
     searchInput.value = '';
     selectedCameraId = null;
+    isLoadingStateActive = false;
     
     // Fetch new cameras list
     fetchCameras();

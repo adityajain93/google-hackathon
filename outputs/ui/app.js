@@ -356,7 +356,8 @@ function renderMapMarkers() {
     filteredCameras.forEach((cam, index) => {
         if (cam.latitude && cam.longitude) {
             const latLng = { lat: cam.latitude, lng: cam.longitude };
-            const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+            const markerImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+            const proxiedImg = `/api/proxy?url=${encodeURIComponent(markerImgUrl)}`;
             const isSelected = selectedCameraId === index;
             
             // Neon Violet for Zoo, Neon Cyan for Traffic
@@ -449,7 +450,8 @@ function renderGalleryView() {
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
@@ -524,6 +526,7 @@ function openModal(idx) {
         modalImage.src = proxiedImg;
         modalImage.alt = cam.name;
     }
+    
     modalTitle.textContent = cam.name;
     modalRoute.textContent = cam.route || 'N/A';
     modalDirection.textContent = cam.direction || 'N/A';
@@ -538,6 +541,13 @@ function openModal(idx) {
 function closeModal() {
     cameraModal.classList.remove('show');
     document.body.style.overflow = 'auto';
+    
+    // Remove YouTube iframe if exists
+    const imgContainer = document.querySelector('.modal-img-container');
+    const iframe = imgContainer.querySelector('iframe');
+    if (iframe) iframe.remove();
+    
+    modalImage.style.display = 'block';
     modalImage.src = '';
     modalYoutubeFrame.src = '';
     modalYoutubeFrame.style.display = 'none';
@@ -566,7 +576,8 @@ async function runAIAnalysis() {
     runAnalysisBtn.style.opacity = '0.6';
 
     try {
-        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(cam.img_url)}&prompt=${objective}`;
+        const analyzeUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(analyzeUrl)}&prompt=${objective}`;
         if (objective === 'custom') {
             url += `&custom_prompt=${encodeURIComponent(customPrompt)}`;
         }

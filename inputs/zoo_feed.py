@@ -75,6 +75,19 @@ class ZooFeed(BaseFeed):
                 'direction': 'Trail View',
                 'latitude': 37.7711,
                 'longitude': -122.1765
+            },
+            {
+                'id': 'zoo_penguin_pittsburgh',
+                'name': 'Penguin Cam Live (Pittsburgh Zoo)',
+                'nearby': 'Penguin Pool',
+                'img_url': 'https://images.unsplash.com/photo-1517783999520-f068d7431a60?w=800&auto=format&fit=crop&q=80',
+                'youtube_id': 'cTi5sCsUSfc',
+                'county': 'Pittsburgh Zoo',
+                'route': 'Zone D',
+                'direction': 'Underwater View',
+                'latitude': 32.7348,
+                'longitude': -117.1512,
+                'is_youtube': True
             }
         ]
 

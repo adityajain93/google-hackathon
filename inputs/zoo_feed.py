@@ -53,30 +53,6 @@ class ZooFeed(BaseFeed):
                 'longitude': -117.1490
             },
             {
-                'id': 'zoo_lion_smithsonian',
-                'name': 'Smithsonian National Zoo — Lion Cam',
-                'nearby': 'Great Cats Habitat',
-                'img_url': 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=800&auto=format&fit=crop&q=80',
-                'youtube_id': None,
-                'county': 'Washington DC',
-                'route': 'Zone A',
-                'direction': 'Outdoor Yard',
-                'latitude': 38.9300,
-                'longitude': -77.0508
-            },
-            {
-                'id': 'zoo_grizzly_oakland',
-                'name': 'Oakland Zoo — Grizzly Bear Cam',
-                'nearby': 'California Trail',
-                'img_url': 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=800&auto=format&fit=crop&q=80',
-                'youtube_id': None,
-                'county': 'Oakland CA',
-                'route': 'Zone D',
-                'direction': 'Trail View',
-                'latitude': 37.7711,
-                'longitude': -122.1765
-            },
-            {
                 'id': 'zoo_penguin_pittsburgh',
                 'name': 'Penguin Cam Live (Pittsburgh Zoo)',
                 'nearby': 'Penguin Pool',

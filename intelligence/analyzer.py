@@ -33,12 +33,14 @@ class Analyzer:
             'traffic': {
                 'describe': "Describe the current traffic conditions, flow, and weather visibility in this traffic camera frame. Keep it concise.",
                 'count': "Count the approximate number of vehicles (cars, trucks, motorcycles) visible in this image. Give a clear count.",
-                'hazard': "Look closely at the highway lane. Check if there are any accidents, stalled vehicles, debris, construction, or hazards. Report what you find."
+                'hazard': "Look closely at the highway lane. Check if there are any accidents, stalled vehicles, debris, construction, or hazards. Report what you find.",
+                'safety': "Analyze this traffic camera frame. Check if there is a collision, accident, vehicle breakdown, lane blockage, or hazard in that area. If there is, output 'ACCIDENT ALERT', 'COLLISION ALERT' or 'HAZARD ALERT' followed by a very brief explanation (e.g., 'COLLISION ALERT: minor crash on left lane'). If the roadway/intersection looks clear and traffic is flowing normally, output 'SAFE' followed by a brief explanation (e.g., 'SAFE: clear traffic'). Keep your response under 10 words."
             },
             'zoo': {
                 'describe': "Identify the animals visible in this zoo camera frame and describe what they are doing. Keep it concise and engaging.",
                 'count': "Count how many animals are visible in the enclosure. Mention if any are hiding.",
-                'hazard': "Assess the activity level of the animals. Are they active, sleeping, eating, or playing? Describe their behavior."
+                'hazard': "Assess the activity level of the animals. Are they active, sleeping, eating, or playing? Describe their behavior.",
+                'safety': "Assess the safety of the animals in the enclosure. Verify that no visible hazards, debris, or anomalies exist. Respond with 'SAFE: all normal' or a brief warning if anything looks unsafe."
             }
         }
         
@@ -71,6 +73,18 @@ class Analyzer:
                     "Minor delay due to wet road conditions and spray from large trucks. No lane blockages observed."
                 ]
                 return f"[SIMULATION] {random.choice(hazards)}"
+            elif prompt_key == 'safety':
+                safeties = [
+                    "[SIMULATION] SAFE: clear traffic flow.",
+                    "[SIMULATION] SAFE: normal road conditions.",
+                    "[SIMULATION] SAFE: clear roadway and flow.",
+                    "[SIMULATION] HAZARD ALERT: stalled vehicle on shoulder.",
+                    "[SIMULATION] ACCIDENT ALERT: multi-vehicle collision.",
+                    "[SIMULATION] COLLISION ALERT: minor rear-end accident."
+                ]
+                # Let's bias towards Safe (80% safe)
+                weights = [0.25, 0.25, 0.30, 0.10, 0.05, 0.05]
+                return random.choices(safeties, weights=weights)[0]
         
         elif feed_type == 'zoo':
             if prompt_key == 'describe':
@@ -91,5 +105,7 @@ class Analyzer:
                     "Activity Level: Low. The animal is curled up sleeping under the canopy, displaying resting behaviors."
                 ]
                 return f"[SIMULATION] {random.choice(levels)}"
+            elif prompt_key == 'safety':
+                return "[SIMULATION] SAFE: animals behavior normal."
 
         return "[SIMULATION] Image analysis complete. Subject is visible and stable under current lighting conditions."

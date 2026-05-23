@@ -17,6 +17,7 @@ from agents.zoo_agent import ZooAgent
 from agents.car_count_agent import CarCountAgent
 import cv2
 from inputs.youtube_grabber import YoutubeFrameGrabber
+from agents.safety_agent import SafetyAgent
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -47,10 +48,12 @@ notifier = Notifier()
 traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
 zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
+safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
 
 traffic_agent.start()
 zoo_agent.start()
 car_count_agent.start()
+safety_agent.start()
 
 # Bypass SSL context for image proxying
 ssl_context = ssl.create_default_context()

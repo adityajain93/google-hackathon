@@ -279,6 +279,10 @@ function renderListView() {
         const countPill = cam.latest_count_summary 
             ? `<span class="list-count-badge ${accentClass}">${cam.latest_count_summary}</span>` 
             : '';
+
+        const aqiPill = cam.air_quality_summary
+            ? `<span class="list-aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</span>`
+            : '';
             
         item.innerHTML = `
             <div class="item-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%;">
@@ -286,6 +290,7 @@ function renderListView() {
                 <div class="item-badges" style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
                     ${safetyPill}
                     ${countPill}
+                    ${aqiPill}
                 </div>
             </div>
             <div class="item-meta" style="margin-top: 4px;">
@@ -335,6 +340,10 @@ function renderGalleryView() {
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
+
+        const aqiBadge = cam.air_quality_summary
+            ? `<div class="aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</div>`
+            : '';
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
@@ -342,6 +351,7 @@ function renderGalleryView() {
                 <div class="card-badges">
                     ${safetyBadge}
                     ${countBadge}
+                    ${aqiBadge}
                     <div class="card-badge">Live</div>
                 </div>
             </div>
@@ -525,6 +535,9 @@ async function updateCountsOnly() {
                 localCam.latest_count_details = updatedCam.latest_count_details;
                 localCam.safety_summary = updatedCam.safety_summary;
                 localCam.safety_details = updatedCam.safety_details;
+                localCam.air_quality_aqi = updatedCam.air_quality_aqi;
+                localCam.air_quality_summary = updatedCam.air_quality_summary;
+                localCam.air_quality_css_class = updatedCam.air_quality_css_class;
             }
             
             // Update card element badges directly
@@ -568,6 +581,25 @@ async function updateCountsOnly() {
                     } else if (countBadge) {
                         countBadge.remove();
                     }
+
+                    // Update/insert AQI badge
+                    let aqiBadge = badgeContainer.querySelector('.aqi-badge');
+                    if (updatedCam.air_quality_summary) {
+                        if (!aqiBadge) {
+                            aqiBadge = document.createElement('div');
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) {
+                                badgeContainer.insertBefore(aqiBadge, liveBadge);
+                            } else {
+                                badgeContainer.appendChild(aqiBadge);
+                            }
+                        }
+                        aqiBadge.className = `aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                        aqiBadge.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                        aqiBadge.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                    } else if (aqiBadge) {
+                        aqiBadge.remove();
+                    }
                 }
             }
             
@@ -608,6 +640,20 @@ async function updateCountsOnly() {
                             countPill.textContent = updatedCam.latest_count_summary;
                         } else if (countPill) {
                             countPill.remove();
+                        }
+
+                        // Update AQI pill
+                        let aqiPill = badgesWrapper.querySelector('.list-aqi-badge');
+                        if (updatedCam.air_quality_summary) {
+                            if (!aqiPill) {
+                                aqiPill = document.createElement('span');
+                                badgesWrapper.appendChild(aqiPill);
+                            }
+                            aqiPill.className = `list-aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                            aqiPill.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                            aqiPill.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                        } else if (aqiPill) {
+                            aqiPill.remove();
                         }
                     }
                 }

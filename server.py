@@ -19,6 +19,7 @@ import cv2
 from agents.scavenger_agent import ScavengerAgent
 from inputs.youtube_grabber import YoutubeFrameGrabber
 from agents.safety_agent import SafetyAgent
+from agents.air_quality_agent import AirQualityAgent
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +51,7 @@ traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
 zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
+air_quality_agent = AirQualityAgent(caltrans_feed)
 
 scavenger_agent = ScavengerAgent(caltrans_feed, analyzer.gemini_client)
 
@@ -57,6 +59,7 @@ traffic_agent.start()
 zoo_agent.start()
 car_count_agent.start()
 safety_agent.start()
+air_quality_agent.start()
 
 # Bypass SSL context for image proxying
 ssl_context = ssl.create_default_context()

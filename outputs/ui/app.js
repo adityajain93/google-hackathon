@@ -105,6 +105,7 @@ const feedSelect = document.getElementById('feed-select');
 // Modal Elements
 const cameraModal = document.getElementById('camera-modal');
 const modalImage = document.getElementById('modal-image');
+const modalYoutubeFrame = document.getElementById('modal-youtube-frame');
 const modalTitle = document.getElementById('modal-camera-title');
 const modalRoute = document.getElementById('modal-route');
 const modalDirection = document.getElementById('modal-direction');
@@ -510,9 +511,19 @@ function openModal(idx) {
     
     const timestamp = new Date().getTime();
     const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${timestamp}`;
-    
-    modalImage.src = proxiedImg;
-    modalImage.alt = cam.name;
+
+    // Show YouTube live iframe if available, otherwise show image
+    if (cam.youtube_id) {
+        modalImage.style.display = 'none';
+        modalYoutubeFrame.style.display = 'block';
+        modalYoutubeFrame.src = `https://www.youtube.com/embed/${cam.youtube_id}?autoplay=1&mute=1`;
+    } else {
+        modalYoutubeFrame.style.display = 'none';
+        modalYoutubeFrame.src = '';
+        modalImage.style.display = 'block';
+        modalImage.src = proxiedImg;
+        modalImage.alt = cam.name;
+    }
     modalTitle.textContent = cam.name;
     modalRoute.textContent = cam.route || 'N/A';
     modalDirection.textContent = cam.direction || 'N/A';
@@ -528,6 +539,9 @@ function closeModal() {
     cameraModal.classList.remove('show');
     document.body.style.overflow = 'auto';
     modalImage.src = '';
+    modalYoutubeFrame.src = '';
+    modalYoutubeFrame.style.display = 'none';
+    modalImage.style.display = 'block';
 }
 
 // Run AI analysis sandbox action

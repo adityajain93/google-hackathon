@@ -12,14 +12,13 @@ from inputs.caltrans import CaltransFeed
 from inputs.zoo_feed import ZooFeed
 from intelligence.analyzer import Analyzer
 from outputs.notifier import Notifier
-from agents.traffic_agent import TrafficAgent
-from agents.zoo_agent import ZooAgent
-from agents.car_count_agent import CarCountAgent
+from agents.camera_analysis_agent import CameraAnalysisAgent
+from agents.alert_agent import AlertAgent
 import cv2
 from agents.scavenger_agent import ScavengerAgent
 from inputs.youtube_grabber import YoutubeFrameGrabber
-from agents.safety_agent import SafetyAgent
 from agents.air_quality_agent import AirQualityAgent
+
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -46,20 +45,17 @@ zoo_feed = ZooFeed()
 analyzer = Analyzer()
 notifier = Notifier()
 
-# Instantiate and start background agents
-traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
-zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
-car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
-safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
+# Start unified analysis pipeline
+camera_agent = CameraAnalysisAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 air_quality_agent = AirQualityAgent(caltrans_feed)
-
 scavenger_agent = ScavengerAgent(caltrans_feed, analyzer.gemini_client)
+alert_agent = AlertAgent(analyzer, notifier)
 
-traffic_agent.start()
-zoo_agent.start()
-car_count_agent.start()
-safety_agent.start()
+print("[Server] Starting CameraAnalysisAgent + AlertAgent pipeline...")
+camera_agent.start()
 air_quality_agent.start()
+alert_agent.start()
+
 
 # Bypass SSL context for image proxying
 ssl_context = ssl.create_default_context()
@@ -191,6 +187,29 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
+
+        # API Endpoint: Get analysis logs (also aliased from old /api/surveillance/logs)
+        elif path in ('/api/analysis/logs', '/api/surveillance/logs'):
+            from agents.camera_analysis_agent import LOG_PATH as ANALYSIS_LOG, log_lock
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            logs = []
+            if os.path.exists(ANALYSIS_LOG):
+                try:
+                    with log_lock:
+                        with open(ANALYSIS_LOG, 'r', encoding='utf-8') as f:
+                            logs = json.load(f)
+                            if not isinstance(logs, list):
+                                logs = []
+                except Exception as e:
+                    print(f"[Server] Error reading analysis log: {e}")
+
+            logs.reverse()  # Latest first
+            self.wfile.write(json.dumps({"status": "success", "logs": logs}).encode('utf-8'))
             return
             
         # Fall back to standard static file serving

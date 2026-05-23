@@ -166,9 +166,10 @@
             border: 1px solid var(--border-color);
             border-radius: 12px;
             overflow: hidden;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, transform 0.2s;
+            cursor: pointer;
         }
-        .finding-row:hover { border-color: var(--border-hover); }
+        .finding-row:hover { border-color: var(--border-hover); transform: translateY(-1px); }
         .finding-row.CONGESTION   { border-left: 3px solid #f59e0b; }
         .finding-row.CONSTRUCTION { border-left: 3px solid #f97316; }
         .finding-row.WEATHER      { border-left: 3px solid #06b6d4; }
@@ -247,7 +248,7 @@
     <div class="route-form">
         <div class="route-inputs">
             <div class="ac-wrap">
-                <input type="text" id="origin" class="route-input" placeholder="Starting from..." autocomplete="off">
+                <input type="text" id="origin" class="route-input" placeholder="Starting from..." autocomplete="off" value="San Francisco Ferry Building, 1 Ferry Plaza, San Francisco, CA 94111">
                 <div class="ac-list" id="origin-list"></div>
             </div>
             <div class="route-arrow">→</div>
@@ -281,6 +282,75 @@
     </div>
 </div>
 
+<!-- Camera Detail Modal -->
+<div class="modal" id="scav-modal" role="dialog" aria-modal="true" aria-labelledby="scav-modal-title">
+    <div class="modal-content">
+        <button class="modal-close" id="scav-modal-close" aria-label="Close modal">&times;</button>
+        <div class="modal-split-container">
+            <div class="modal-left-panel">
+                <div class="modal-img-container">
+                    <img src="" alt="" class="modal-img" id="scav-modal-image">
+                </div>
+            </div>
+            <div class="modal-right-panel">
+                <div class="modal-info-section">
+                    <h3 class="modal-title" id="scav-modal-title">Camera</h3>
+                    <div class="modal-meta-grid">
+                        <div>
+                            <span class="modal-meta-label">Route:</span>
+                            <span class="modal-meta-value" id="scav-modal-route">N/A</span>
+                        </div>
+                        <div>
+                            <span class="modal-meta-label">Category:</span>
+                            <span class="modal-meta-value" id="scav-modal-category">N/A</span>
+                        </div>
+                        <div style="grid-column:1/-1">
+                            <span class="modal-meta-label">Location:</span>
+                            <span class="modal-meta-value" id="scav-modal-location">N/A</span>
+                        </div>
+                        <div style="grid-column:1/-1">
+                            <span class="modal-meta-label">Finding:</span>
+                            <span class="modal-meta-value" id="scav-modal-obs"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="intelligence-sandbox">
+                    <div class="sandbox-header">
+                        <div class="sandbox-pulse-dot"></div>
+                        <h4>AI Intelligence Sandbox</h4>
+                    </div>
+                    <p class="sandbox-desc">Interact with Gemini to analyze the live camera feed. Select a goal or write a custom query.</p>
+                    <div class="sandbox-field-group">
+                        <label for="scav-prompt-select" class="sandbox-label">Analysis Objective</label>
+                        <select id="scav-prompt-select" class="sandbox-select">
+                            <option value="describe">📝 General Description</option>
+                            <option value="count">🧮 Count Objects</option>
+                            <option value="hazard">⚠️ Assess Hazards</option>
+                            <option value="custom">✨ Custom User Query</option>
+                        </select>
+                    </div>
+                    <div class="sandbox-field-group" id="scav-custom-group" style="display:none">
+                        <label for="scav-custom-input" class="sandbox-label">Custom Query</label>
+                        <textarea id="scav-custom-input" class="sandbox-textarea" placeholder="e.g. Is there construction on the right shoulder?"></textarea>
+                    </div>
+                    <button id="scav-run-btn" class="sandbox-action-btn">
+                        <span class="btn-text">Run AI Analysis</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                    <div class="sandbox-result-box">
+                        <div class="result-placeholder" id="scav-result-placeholder">Select a goal and click Run.</div>
+                        <div class="result-loader" id="scav-result-loader" style="display:none">
+                            <div class="labs-spinner"></div>
+                            <span class="loading-text">Gemini is inspecting frame...</span>
+                        </div>
+                        <div class="result-body" id="scav-result-content" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map = L.map('map').setView([37.5, -119.5], 6);
@@ -290,6 +360,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 let routeLayer = null;
 const cameraMarkers = [];
+let currentFindings = [];
 
 const CATEGORY_COLOR = { CONGESTION:'#f59e0b', CONSTRUCTION:'#f97316', WEATHER:'#06b6d4', HAZARD:'#ef4444', QUIRKY:'#8b5cf6' };
 const CATEGORY_EMOJI = { CONGESTION:'🚗', CONSTRUCTION:'🚧', WEATHER:'🌫️', HAZARD:'🚨', QUIRKY:'✨' };
@@ -303,10 +374,22 @@ function haversineDist(lat1, lng1, lat2, lng2) {
     return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function distanceToPath(camLat, camLng, path) {
-    let minDist = Infinity, minIdx = 0;
-    path.forEach(([lat,lng],i) => { const d=haversineDist(camLat,camLng,lat,lng); if(d<minDist){minDist=d;minIdx=i;} });
-    return { dist: minDist, idx: minIdx };
+// Returns {dist (metres), idx} using the actual drawn Leaflet polyline
+function distanceToRouteLayer(cam, routeLayer, map) {
+    const camPx = map.latLngToLayerPoint([cam.latitude, cam.longitude]);
+    const points = routeLayer.getLatLngs().map(ll => map.latLngToLayerPoint(ll));
+    let minDist = Infinity, closestPx = null, minIdx = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+        const pt = L.LineUtil.closestPointOnSegment(camPx, points[i], points[i + 1]);
+        const d = Math.hypot(camPx.x - pt.x, camPx.y - pt.y);
+        if (d < minDist) { minDist = d; closestPx = pt; minIdx = i; }
+    }
+    if (!closestPx) return { dist: Infinity, idx: 0 };
+    const closestLatLng = map.layerPointToLatLng(closestPx);
+    return {
+        dist: haversineDist(cam.latitude, cam.longitude, closestLatLng.lat, closestLatLng.lng),
+        idx: minIdx,
+    };
 }
 
 const statusBar = document.getElementById('status-bar');
@@ -406,12 +489,20 @@ document.getElementById('preview-btn').addEventListener('click', async () => {
         setStatus('Finding cameras along your route...');
         const { cameras } = await fetch('/api/cameras?feed=traffic').then(r => r.json());
 
-        const routeCameras = cameras
+        const withDist = cameras
             .filter(c => c.latitude && c.longitude)
-            .map(c => { const {dist,idx} = distanceToPath(c.latitude,c.longitude,path); return {...c,_dist:dist,_idx:idx}; })
-            .filter(c => c._dist <= 8000)
-            .sort((a,b) => a._idx - b._idx)
+            .map(c => {
+                const { dist, idx } = distanceToRouteLayer(c, routeLayer, map);
+                return { ...c, _dist: dist, _idx: idx };
+            });
+
+        const routeCameras = withDist
+            .filter(c => c._dist <= 500) // 500m from the drawn route line
+            .sort((a, b) => a._idx - b._idx)
             .slice(0, 15);
+
+        console.log(`[Scavenger] ${cameras.length} cameras → ${routeCameras.length} on route (≤500m)`);
+        routeCameras.forEach(c => console.log(`  ${Math.round(c._dist)}m  ${c.name}`));
 
         routeCameras.forEach(c => {
             const m = L.circleMarker([c.latitude,c.longitude], { radius:5, color:'#52525b', fillColor:'#52525b', fillOpacity:0.8, weight:1 }).addTo(map);
@@ -457,8 +548,9 @@ document.getElementById('preview-btn').addEventListener('click', async () => {
             allClear.classList.add('visible');
         } else {
             resultsTitle.textContent = `${findings.length} thing${findings.length !== 1 ? 's' : ''} to watch for`;
-            findingsList.innerHTML = findings.map(f => `
-                <div class="finding-row ${f.category}">
+            currentFindings = findings;
+            findingsList.innerHTML = findings.map((f, i) => `
+                <div class="finding-row ${f.category}" data-index="${i}" onclick="openModal(currentFindings[${i}])">
                     <div class="finding-thumb"><img src="${proxyUrl(f.img_url)}" loading="lazy" onerror="this.style.display='none'"></div>
                     <div class="finding-body">
                         <div class="finding-cat ${f.category}">${CATEGORY_EMOJI[f.category]||'📍'} ${f.category}</div>
@@ -477,6 +569,71 @@ document.getElementById('preview-btn').addEventListener('click', async () => {
 ['origin','destination'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('preview-btn').click(); })
 );
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+let modalFinding = null;
+
+function openModal(f) {
+    modalFinding = f;
+    document.getElementById('scav-modal-image').src = proxyUrl(f.img_url);
+    document.getElementById('scav-modal-title').textContent = f.name || f.location;
+    document.getElementById('scav-modal-route').textContent = f.route || 'N/A';
+    document.getElementById('scav-modal-location').textContent = f.location || 'N/A';
+    document.getElementById('scav-modal-category').textContent = (CATEGORY_EMOJI[f.category] || '📍') + ' ' + f.category;
+    document.getElementById('scav-modal-obs').textContent = f.observation;
+
+    // Reset sandbox
+    document.getElementById('scav-prompt-select').value = 'describe';
+    document.getElementById('scav-custom-group').style.display = 'none';
+    document.getElementById('scav-custom-input').value = '';
+    document.getElementById('scav-result-placeholder').style.display = 'block';
+    document.getElementById('scav-result-loader').style.display = 'none';
+    document.getElementById('scav-result-content').style.display = 'none';
+    document.getElementById('scav-result-content').innerHTML = '';
+
+    const modal = document.getElementById('scav-modal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    document.getElementById('scav-modal').classList.remove('show');
+    document.body.style.overflow = '';
+    modalFinding = null;
+}
+
+document.getElementById('scav-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.getElementById('scav-modal-close').addEventListener('click', closeModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+document.getElementById('scav-prompt-select').addEventListener('change', function() {
+    document.getElementById('scav-custom-group').style.display = this.value === 'custom' ? 'block' : 'none';
+});
+
+document.getElementById('scav-run-btn').addEventListener('click', async () => {
+    if (!modalFinding) return;
+    const promptKey = document.getElementById('scav-prompt-select').value;
+    const customPrompt = document.getElementById('scav-custom-input').value.trim();
+    if (promptKey === 'custom' && !customPrompt) return;
+
+    document.getElementById('scav-result-placeholder').style.display = 'none';
+    document.getElementById('scav-result-loader').style.display = 'flex';
+    document.getElementById('scav-result-content').style.display = 'none';
+
+    try {
+        let url = `/api/analyze?feed=traffic&url=${encodeURIComponent(modalFinding.img_url)}&prompt=${promptKey}`;
+        if (promptKey === 'custom') url += `&custom_prompt=${encodeURIComponent(customPrompt)}`;
+        const data = await fetch(url).then(r => r.json());
+        document.getElementById('scav-result-loader').style.display = 'none';
+        document.getElementById('scav-result-content').style.display = 'block';
+        document.getElementById('scav-result-content').textContent = data.result || data.message || 'No result returned.';
+    } catch(err) {
+        document.getElementById('scav-result-loader').style.display = 'none';
+        document.getElementById('scav-result-content').style.display = 'block';
+        document.getElementById('scav-result-content').textContent = 'Error: ' + err.message;
+    }
+});
 </script>
+
 </body>
 </html>

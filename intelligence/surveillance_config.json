@@ -1,0 +1,10 @@
+{
+  "traffic": {
+    "surveillance_target": "Look for accidents, lane blockages, stalled or disabled vehicles, emergency response vehicles (police, fire, ambulance), road construction, debris on road, or severe traffic jams. Be precise — report specific lane positions and severity.",
+    "check_interval_seconds": 300
+  },
+  "zoo": {
+    "surveillance_target": "Watch for delightful or quirky animal moments worth seeing in person: rolling or somersaulting, splashing and playing in water, wrestling or chasing each other, interacting with enrichment toys, funny or unusual poses, big yawns or stretches, baby animals doing anything cute, or any rare/unexpected behavior. Routine slow feeding or resting is NOT worth flagging — only flag genuinely fun or rare moments.",
+    "check_interval_seconds": 30
+  }
+}

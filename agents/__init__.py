@@ -1,5 +1,3 @@
 # Agents package
-from agents.traffic_agent import TrafficAgent
-from agents.zoo_agent import ZooAgent
-from agents.car_count_agent import CarCountAgent
-from agents.safety_agent import SafetyAgent
+from agents.camera_analysis_agent import CameraAnalysisAgent
+from agents.alert_agent import AlertAgent

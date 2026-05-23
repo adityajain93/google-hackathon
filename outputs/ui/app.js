@@ -350,6 +350,8 @@ function renderGalleryView() {
             ? `<div class="aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</div>`
             : '';
         
+        const funDesc = currentFeed === 'zoo' && cam.fun_description ? cam.fun_description : '';
+
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
                 <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%230d0d15%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2352525b%22>FEED OFFLINE</text></svg>';" />
@@ -367,6 +369,7 @@ function renderGalleryView() {
                     <span>${cam.route}</span>
                 </div>
             </div>
+            <div class="fun-moment-box" id="fun-${cam.id}" style="${funDesc ? '' : 'display:none'}">🐾 ${funDesc}</div>
         `;
         cameraGallery.appendChild(card);
     });
@@ -656,6 +659,8 @@ async function updateCountsOnly() {
                 localCam.air_quality_aqi = updatedCam.air_quality_aqi;
                 localCam.air_quality_summary = updatedCam.air_quality_summary;
                 localCam.air_quality_css_class = updatedCam.air_quality_css_class;
+                localCam.fun_description = updatedCam.fun_description;
+                localCam.fun_moment = updatedCam.fun_moment;
 
                 // When count changes → refresh card image so display matches the analyzed frame
                 if (countChanged && !updatedCam.youtube_id && updatedCam.img_url) {
@@ -664,6 +669,18 @@ async function updateCountsOnly() {
                         const syncImg = syncCard.querySelector('.card-img');
                         if (syncImg) syncImg.src = `/api/proxy?url=${encodeURIComponent(updatedCam.img_url)}&t=${Date.now()}`;
                     }
+                }
+            }
+
+            // Update fun moment box
+            const funBox = document.getElementById(`fun-${updatedCam.id}`);
+            if (funBox && currentFeed === 'zoo') {
+                const desc = updatedCam.fun_description || '';
+                if (desc) {
+                    funBox.textContent = `🐾 ${desc}`;
+                    funBox.style.display = '';
+                } else {
+                    funBox.style.display = 'none';
                 }
             }
 

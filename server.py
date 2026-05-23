@@ -14,6 +14,7 @@ from intelligence.analyzer import Analyzer
 from outputs.notifier import Notifier
 from agents.traffic_agent import TrafficAgent
 from agents.zoo_agent import ZooAgent
+from agents.car_count_agent import CarCountAgent
 import cv2
 from inputs.youtube_grabber import YoutubeFrameGrabber
 
@@ -45,9 +46,11 @@ notifier = Notifier()
 # Instantiate and start background agents
 traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
 zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
+car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 
 traffic_agent.start()
 zoo_agent.start()
+car_count_agent.start()
 
 # Bypass SSL context for image proxying
 ssl_context = ssl.create_default_context()
@@ -58,6 +61,12 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         # Serve static files from UI_DIRECTORY
         super().__init__(*args, directory=UI_DIRECTORY, **kwargs)
+
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
 
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
@@ -181,6 +190,8 @@ def start_server():
     time.sleep(2)
     
     handler = CameraProxyHandler
+    socketserver.TCPServer.allow_reuse_address = True
+    with socketserver.TCPServer(("", PORT), handler) as httpd:
     with http.server.ThreadingHTTPServer(("", PORT), handler) as httpd:
         print(f"[Server] Running at http://localhost:{PORT}")
         try:

@@ -170,12 +170,10 @@ function setupEventListeners() {
     // Run AI button handler
     runAnalysisBtn.addEventListener('click', runAIAnalysis);
 
-    // Auto-refresh feeds list every 2 minutes
+    // Auto-refresh count data in background every 15 seconds without resetting the UI
     setInterval(() => {
-        if (!cameraModal.classList.contains('show')) {
-            fetchCameras();
-        }
-    }, 120000);
+        updateCountsOnly();
+    }, 15000);
 }
 
 // Handle Feed Switching
@@ -247,13 +245,22 @@ function renderListView() {
     filteredCameras.forEach((cam, idx) => {
         const item = document.createElement('div');
         item.className = `camera-list-item ${selectedCameraId === idx ? 'selected' : ''}`;
+        item.id = `cam-list-item-${cam.id}`;
         
         const routeLabel = currentFeed === 'traffic' ? 'Route' : 'Zone';
         const countyLabel = currentFeed === 'traffic' ? cam.county : cam.county;
         
+        const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        const countPill = cam.latest_count_summary 
+            ? `<span class="list-count-badge ${accentClass}">${cam.latest_count_summary}</span>` 
+            : '';
+            
         item.innerHTML = `
-            <div class="item-name">${cam.name}</div>
-            <div class="item-meta">
+            <div class="item-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%;">
+                <div class="item-name">${cam.name}</div>
+                ${countPill}
+            </div>
+            <div class="item-meta" style="margin-top: 4px;">
                 <span>${routeLabel}: ${cam.route}</span>
                 <span>${countyLabel}</span>
             </div>
@@ -277,19 +284,27 @@ function renderGalleryView() {
     filteredCameras.forEach((cam, idx) => {
         const card = document.createElement('div');
         card.className = 'camera-card';
-        card.id = `cam-card-${idx}`;
+        card.id = `cam-card-${cam.id}`;
         if (selectedCameraId === idx) {
             card.style.borderColor = 'var(--accent-violet)';
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+        const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        const countBadge = cam.latest_count_summary 
+            ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
+            : '';
         const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
         const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
                 <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%230d0d15%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2352525b%22>FEED OFFLINE</text></svg>';" />
-                <div class="card-badge">Live</div>
+                <div class="card-badges">
+                    ${countBadge}
+                    <div class="card-badge">Live</div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="card-title">${cam.name}</div>
@@ -452,4 +467,72 @@ function showAIError(msg) {
     resultBody.textContent = `Error: ${msg}`;
     runAnalysisBtn.disabled = false;
     runAnalysisBtn.style.opacity = '1';
+}
+
+// Background poller updating count values in-place without page/flicker resets
+async function updateCountsOnly() {
+    try {
+        const response = await fetch(`/api/cameras?feed=${currentFeed}`);
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const data = await response.json();
+        const updatedCameras = data.cameras || [];
+        
+        // Sync local camera data cache
+        updatedCameras.forEach(updatedCam => {
+            const localCam = cameras.find(c => c.id === updatedCam.id);
+            if (localCam) {
+                localCam.latest_count_summary = updatedCam.latest_count_summary;
+                localCam.latest_count_details = updatedCam.latest_count_details;
+            }
+            
+            // Update card element count badge directly
+            const card = document.getElementById(`cam-card-${updatedCam.id}`);
+            if (card) {
+                const badgeContainer = card.querySelector('.card-badges');
+                if (badgeContainer) {
+                    let countBadge = badgeContainer.querySelector('.count-badge');
+                    if (updatedCam.latest_count_summary) {
+                        if (!countBadge) {
+                            countBadge = document.createElement('div');
+                            countBadge.className = `count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
+                            badgeContainer.insertBefore(countBadge, badgeContainer.firstChild);
+                        }
+                        countBadge.textContent = updatedCam.latest_count_summary;
+                    } else if (countBadge) {
+                        countBadge.remove();
+                    }
+                }
+            }
+            
+            // Update sidebar item count badge directly
+            const listItem = document.getElementById(`cam-list-item-${updatedCam.id}`);
+            if (listItem) {
+                let listBadge = listItem.querySelector('.list-count-badge');
+                if (updatedCam.latest_count_summary) {
+                    if (!listBadge) {
+                        const header = listItem.querySelector('.item-header');
+                        if (header) {
+                            listBadge = document.createElement('span');
+                            listBadge.className = `list-count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
+                            header.appendChild(listBadge);
+                        }
+                    }
+                    if (listBadge) {
+                        listBadge.textContent = updatedCam.latest_count_summary;
+                    }
+                } else if (listBadge) {
+                    listBadge.remove();
+                }
+            }
+        });
+        
+        // Update Last Refresh timestamp in UI header
+        if (data.last_updated && lastUpdatedEl) {
+            const date = new Date(data.last_updated * 1000);
+            lastUpdatedEl.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+    } catch (error) {
+        console.error('Error in background count polling:', error);
+    }
 }

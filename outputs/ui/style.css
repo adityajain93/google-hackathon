@@ -383,10 +383,17 @@ h1 {
     transform: scale(1.04);
 }
 
-.card-badge {
+.card-badges {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    z-index: 5;
+}
+
+.card-badge {
     background: rgba(4, 4, 6, 0.85);
     border: 1px solid var(--border-color);
     padding: 0.2rem 0.45rem;
@@ -801,3 +808,51 @@ h1 {
         max-height: none;
     }
 }
+
+/* Count Badge styles */
+.count-badge {
+    background: rgba(10, 10, 15, 0.85);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    backdrop-filter: var(--glass-blur);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.count-badge.traffic-accent {
+    border-color: rgba(6, 182, 212, 0.4);
+    color: var(--accent-cyan);
+}
+
+.count-badge.zoo-accent {
+    border-color: rgba(139, 92, 246, 0.4);
+    color: var(--accent-violet);
+}
+
+/* Sidebar List Count Badge styles */
+.list-count-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+}
+
+.list-count-badge.traffic-accent {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+    color: var(--accent-cyan);
+}
+
+.list-count-badge.zoo-accent {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    color: var(--accent-violet);
+}
+

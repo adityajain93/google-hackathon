@@ -16,6 +16,7 @@ from agents.traffic_agent import TrafficAgent
 from agents.zoo_agent import ZooAgent
 from agents.car_count_agent import CarCountAgent
 import cv2
+from agents.scavenger_agent import ScavengerAgent
 from inputs.youtube_grabber import YoutubeFrameGrabber
 from agents.safety_agent import SafetyAgent
 
@@ -49,6 +50,8 @@ traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
 zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
+
+scavenger_agent = ScavengerAgent(caltrans_feed, analyzer.gemini_client)
 
 traffic_agent.start()
 zoo_agent.start()
@@ -186,6 +189,31 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
             
         # Fall back to standard static file serving
         return super().do_GET()
+
+    def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+
+        if path == '/api/scavenger/route':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = json.loads(self.rfile.read(length))
+                cameras = body.get('cameras', [])
+                findings = scavenger_agent.scan_route_cameras(cameras)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'findings': findings}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+            return
+
+        self.send_error(404)
 
 def start_server():
     print("[Server] Starting server.py...")

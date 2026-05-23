@@ -15,6 +15,7 @@ from outputs.notifier import Notifier
 from agents.car_count_agent import CarCountAgent
 import cv2
 from inputs.youtube_grabber import YoutubeFrameGrabber
+from agents.safety_agent import SafetyAgent
 
 from agents.surveillance_agent import SurveillanceAgent
 from agents.alert_agent import AlertAgent
@@ -47,13 +48,16 @@ notifier = Notifier()
 
 # Instantiate and start background agents
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
-car_count_agent.start()
+safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
 
-# Instantiate and start new Google Antigravity SDK agents
+car_count_agent.start()
+safety_agent.start()
+
+# Instantiate and start autonomous surveillance + alerting agents
 surveillance_agent = SurveillanceAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 alert_agent = AlertAgent(analyzer, notifier)
 
-print("[Server] Starting Google Antigravity SDK agents...")
+print("[Server] Starting background surveillance & alert agents...")
 surveillance_agent.start()
 alert_agent.start()
 

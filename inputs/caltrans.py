@@ -137,6 +137,12 @@ class CaltransFeed(BaseFeed):
                                     new_cam['latest_count_details'] = old_cam['latest_count_details']
                                 if 'last_analyzed_time' in old_cam:
                                     new_cam['last_analyzed_time'] = old_cam['last_analyzed_time']
+                                if 'safety_summary' in old_cam:
+                                    new_cam['safety_summary'] = old_cam['safety_summary']
+                                if 'safety_details' in old_cam:
+                                    new_cam['safety_details'] = old_cam['safety_details']
+                                if 'last_safety_analyzed_time' in old_cam:
+                                    new_cam['last_safety_analyzed_time'] = old_cam['last_safety_analyzed_time']
                         self.active_cameras = verified_cams
                         self.last_update_time = time.time()
                     print(f"[CaltransFeed] Update complete. Found {len(self.active_cameras)} verified cameras.")

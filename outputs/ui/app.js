@@ -251,6 +251,17 @@ function renderListView() {
         const countyLabel = currentFeed === 'traffic' ? cam.county : cam.county;
         
         const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        let safetyPill = '';
+        if (cam.safety_summary) {
+            let safetyClass = 'safety-safe';
+            if (cam.safety_summary === 'Accident' || cam.safety_summary === 'Collision') {
+                safetyClass = 'safety-danger';
+            } else if (cam.safety_summary === 'Hazard') {
+                safetyClass = 'safety-warning';
+            }
+            safetyPill = `<span class="list-safety-badge ${safetyClass}">${cam.safety_summary}</span>`;
+        }
+
         const countPill = cam.latest_count_summary 
             ? `<span class="list-count-badge ${accentClass}">${cam.latest_count_summary}</span>` 
             : '';
@@ -258,7 +269,10 @@ function renderListView() {
         item.innerHTML = `
             <div class="item-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%;">
                 <div class="item-name">${cam.name}</div>
-                ${countPill}
+                <div class="item-badges" style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+                    ${safetyPill}
+                    ${countPill}
+                </div>
             </div>
             <div class="item-meta" style="margin-top: 4px;">
                 <span>${routeLabel}: ${cam.route}</span>
@@ -290,18 +304,29 @@ function renderGalleryView() {
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        let safetyBadge = '';
+        if (cam.safety_summary) {
+            let safetyClass = 'safety-safe';
+            if (cam.safety_summary === 'Accident' || cam.safety_summary === 'Collision') {
+                safetyClass = 'safety-danger';
+            } else if (cam.safety_summary === 'Hazard') {
+                safetyClass = 'safety-warning';
+            }
+            safetyBadge = `<div class="safety-badge ${safetyClass}">${cam.safety_summary}</div>`;
+        }
+
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
-        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
                 <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%230d0d15%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2352525b%22>FEED OFFLINE</text></svg>';" />
                 <div class="card-badges">
+                    ${safetyBadge}
                     ${countBadge}
                     <div class="card-badge">Live</div>
                 </div>
@@ -484,19 +509,46 @@ async function updateCountsOnly() {
             if (localCam) {
                 localCam.latest_count_summary = updatedCam.latest_count_summary;
                 localCam.latest_count_details = updatedCam.latest_count_details;
+                localCam.safety_summary = updatedCam.safety_summary;
+                localCam.safety_details = updatedCam.safety_details;
             }
             
-            // Update card element count badge directly
+            // Update card element badges directly
             const card = document.getElementById(`cam-card-${updatedCam.id}`);
             if (card) {
                 const badgeContainer = card.querySelector('.card-badges');
                 if (badgeContainer) {
+                    // Update/insert safety badge
+                    let safetyBadge = badgeContainer.querySelector('.safety-badge');
+                    if (updatedCam.safety_summary) {
+                        if (!safetyBadge) {
+                            safetyBadge = document.createElement('div');
+                            badgeContainer.insertBefore(safetyBadge, badgeContainer.firstChild);
+                        }
+                        let safetyClass = 'safety-safe';
+                        if (updatedCam.safety_summary === 'Accident' || updatedCam.safety_summary === 'Collision') {
+                            safetyClass = 'safety-danger';
+                        } else if (updatedCam.safety_summary === 'Hazard') {
+                            safetyClass = 'safety-warning';
+                        }
+                        safetyBadge.className = `safety-badge ${safetyClass}`;
+                        safetyBadge.textContent = updatedCam.safety_summary;
+                    } else if (safetyBadge) {
+                        safetyBadge.remove();
+                    }
+
+                    // Update/insert count badge
                     let countBadge = badgeContainer.querySelector('.count-badge');
                     if (updatedCam.latest_count_summary) {
                         if (!countBadge) {
                             countBadge = document.createElement('div');
                             countBadge.className = `count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
-                            badgeContainer.insertBefore(countBadge, badgeContainer.firstChild);
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) {
+                                badgeContainer.insertBefore(countBadge, liveBadge);
+                            } else {
+                                badgeContainer.appendChild(countBadge);
+                            }
                         }
                         countBadge.textContent = updatedCam.latest_count_summary;
                     } else if (countBadge) {
@@ -505,24 +557,45 @@ async function updateCountsOnly() {
                 }
             }
             
-            // Update sidebar item count badge directly
+            // Update sidebar item badges directly
             const listItem = document.getElementById(`cam-list-item-${updatedCam.id}`);
             if (listItem) {
-                let listBadge = listItem.querySelector('.list-count-badge');
-                if (updatedCam.latest_count_summary) {
-                    if (!listBadge) {
-                        const header = listItem.querySelector('.item-header');
-                        if (header) {
-                            listBadge = document.createElement('span');
-                            listBadge.className = `list-count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
-                            header.appendChild(listBadge);
+                const header = listItem.querySelector('.item-header');
+                if (header) {
+                    let badgesWrapper = header.querySelector('.item-badges');
+                    if (badgesWrapper) {
+                        // Update safety pill
+                        let safetyPill = badgesWrapper.querySelector('.list-safety-badge');
+                        if (updatedCam.safety_summary) {
+                            if (!safetyPill) {
+                                safetyPill = document.createElement('span');
+                                badgesWrapper.insertBefore(safetyPill, badgesWrapper.firstChild);
+                            }
+                            let safetyClass = 'safety-safe';
+                            if (updatedCam.safety_summary === 'Accident' || updatedCam.safety_summary === 'Collision') {
+                                safetyClass = 'safety-danger';
+                            } else if (updatedCam.safety_summary === 'Hazard') {
+                                safetyClass = 'safety-warning';
+                            }
+                            safetyPill.className = `list-safety-badge ${safetyClass}`;
+                            safetyPill.textContent = updatedCam.safety_summary;
+                        } else if (safetyPill) {
+                            safetyPill.remove();
+                        }
+
+                        // Update count pill
+                        let countPill = badgesWrapper.querySelector('.list-count-badge');
+                        if (updatedCam.latest_count_summary) {
+                            if (!countPill) {
+                                countPill = document.createElement('span');
+                                countPill.className = `list-count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
+                                badgesWrapper.appendChild(countPill);
+                            }
+                            countPill.textContent = updatedCam.latest_count_summary;
+                        } else if (countPill) {
+                            countPill.remove();
                         }
                     }
-                    if (listBadge) {
-                        listBadge.textContent = updatedCam.latest_count_summary;
-                    }
-                } else if (listBadge) {
-                    listBadge.remove();
                 }
             }
         });

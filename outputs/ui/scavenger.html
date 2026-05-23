@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What's Ahead — Route Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { display: block; }
+
+        .page-header {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.85rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .back-link {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--text-primary); }
+
+        .page-body {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.75rem 1.5rem 4rem;
+            width: 100%;
+        }
+
+        .route-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .route-inputs {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .route-arrow { color: var(--text-muted); text-align: center; font-size: 1.1rem; }
+
+        .ac-wrap { position: relative; }
+
+        .route-input {
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .route-input:focus { border-color: var(--accent-violet); }
+        .route-input::placeholder { color: var(--text-muted); }
+
+        .ac-list {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0; right: 0;
+            background: #0d0d14;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            z-index: 500;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+        .ac-list.open { display: block; }
+
+        .ac-item {
+            padding: 0.65rem 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.15s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ac-item:last-child { border-bottom: none; }
+        .ac-item:hover { background: rgba(139,92,246,0.1); color: var(--text-primary); }
+
+        .preview-btn {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: var(--font-sans);
+            transition: background 0.2s, opacity 0.2s;
+            width: 100%;
+        }
+        .preview-btn:hover { background: #e4e4e7; }
+        .preview-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .map-container {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            height: 360px;
+            margin-bottom: 1.5rem;
+            background: #0a0a0f;
+        }
+        #map { width: 100%; height: 100%; }
+
+        .status-bar {
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        .status-bar.visible { display: flex; }
+        .status-spinner {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(139,92,246,0.2);
+            border-top: 2px solid var(--accent-violet);
+            border-radius: 50%;
+            animation: labs-spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        .results-header {
+            display: none;
+            align-items: baseline;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .results-header.visible { display: flex; }
+        .results-title { font-family: var(--font-heading); font-size: 1rem; font-weight: 600; }
+        .results-sub { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-muted); }
+
+        .findings-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        .finding-row {
+            display: grid;
+            grid-template-columns: 110px 1fr;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .finding-row:hover { border-color: var(--border-hover); }
+        .finding-row.CONGESTION   { border-left: 3px solid #f59e0b; }
+        .finding-row.CONSTRUCTION { border-left: 3px solid #f97316; }
+        .finding-row.WEATHER      { border-left: 3px solid #06b6d4; }
+        .finding-row.HAZARD       { border-left: 3px solid #ef4444; }
+        .finding-row.QUIRKY       { border-left: 3px solid #8b5cf6; }
+
+        .finding-thumb { aspect-ratio: 4/3; background: #020203; overflow: hidden; }
+        .finding-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        .finding-body {
+            padding: 0.85rem 1rem;
+            display: flex; flex-direction: column;
+            justify-content: center; gap: 0.3rem;
+        }
+        .finding-cat {
+            font-size: 0.65rem; font-family: var(--font-mono);
+            font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        .finding-cat.CONGESTION   { color: #f59e0b; }
+        .finding-cat.CONSTRUCTION { color: #f97316; }
+        .finding-cat.WEATHER      { color: #06b6d4; }
+        .finding-cat.HAZARD       { color: #ef4444; }
+        .finding-cat.QUIRKY       { color: #8b5cf6; }
+
+        .finding-obs { font-size: 0.88rem; font-weight: 500; color: var(--text-primary); line-height: 1.4; }
+        .finding-loc { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); }
+
+        .all-clear {
+            display: none; flex-direction: column; align-items: center; gap: 0.5rem;
+            padding: 2.5rem 1rem; border: 1px dashed var(--border-color);
+            border-radius: 12px; text-align: center;
+        }
+        .all-clear.visible { display: flex; }
+
+        .error-msg {
+            display: none; padding: 0.75rem 1rem;
+            background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 8px; font-size: 0.82rem; color: #ef4444;
+            font-family: var(--font-mono);
+        }
+        .error-msg.visible { display: block; }
+
+        .leaflet-popup-content-wrapper {
+            background: #0d0d14 !important;
+            border: 1px solid rgba(255,255,255,0.08) !important;
+            border-radius: 10px !important;
+            color: #fafafa !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+        }
+        .leaflet-popup-tip { background: #0d0d14 !important; }
+        .leaflet-popup-content { margin: 10px 14px !important; }
+        .popup-img { width: 200px; height: auto; border-radius: 6px; display: block; margin-bottom: 8px; }
+        .popup-cat { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; font-family: 'Geist Mono', monospace; }
+        .popup-obs { font-size: 0.8rem; line-height: 1.4; margin-top: 4px; }
+        .popup-loc { font-size: 0.68rem; color: #71717a; font-family: 'Geist Mono', monospace; margin-top: 4px; }
+
+        @media (max-width: 600px) {
+            .route-inputs { grid-template-columns: 1fr; }
+            .route-arrow { display: none; }
+            .finding-row { grid-template-columns: 80px 1fr; }
+            .page-body { padding: 1rem 1rem 3rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="page-header">
+    <div class="logo-container">
+        <div class="logo-badge"></div>
+        <h1>What's Ahead <span class="labs-tag">LIVE</span></h1>
+    </div>
+    <a href="/" class="back-link">← Feed Playground</a>
+</header>
+
+<div class="page-body">
+    <div class="route-form">
+        <div class="route-inputs">
+            <div class="ac-wrap">
+                <input type="text" id="origin" class="route-input" placeholder="Starting from..." autocomplete="off">
+                <div class="ac-list" id="origin-list"></div>
+            </div>
+            <div class="route-arrow">→</div>
+            <div class="ac-wrap">
+                <input type="text" id="destination" class="route-input" placeholder="Heading to..." autocomplete="off">
+                <div class="ac-list" id="destination-list"></div>
+            </div>
+        </div>
+        <div class="error-msg" id="error-msg"></div>
+        <button class="preview-btn" id="preview-btn">Preview My Route</button>
+    </div>
+
+    <div class="map-container"><div id="map"></div></div>
+
+    <div class="status-bar" id="status-bar">
+        <div class="status-spinner"></div>
+        <span id="status-label"></span>
+    </div>
+
+    <div class="results-header" id="results-header">
+        <div class="results-title" id="results-title"></div>
+        <div class="results-sub" id="results-sub"></div>
+    </div>
+
+    <div class="findings-list" id="findings-list"></div>
+
+    <div class="all-clear" id="all-clear">
+        <div style="font-size:2rem">✅</div>
+        <div style="font-size:0.9rem;color:var(--text-secondary);font-weight:500">All clear on your route</div>
+        <div style="font-size:0.78rem;color:var(--text-muted)">Gemini spotted nothing unusual along your path.</div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([37.5, -119.5], 6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19,
+}).addTo(map);
+
+let routeLayer = null;
+const cameraMarkers = [];
+
+const CATEGORY_COLOR = { CONGESTION:'#f59e0b', CONSTRUCTION:'#f97316', WEATHER:'#06b6d4', HAZARD:'#ef4444', QUIRKY:'#8b5cf6' };
+const CATEGORY_EMOJI = { CONGESTION:'🚗', CONSTRUCTION:'🚧', WEATHER:'🌫️', HAZARD:'🚨', QUIRKY:'✨' };
+
+function proxyUrl(url) { return '/api/proxy?url=' + encodeURIComponent(url); }
+
+function haversineDist(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function distanceToPath(camLat, camLng, path) {
+    let minDist = Infinity, minIdx = 0;
+    path.forEach(([lat,lng],i) => { const d=haversineDist(camLat,camLng,lat,lng); if(d<minDist){minDist=d;minIdx=i;} });
+    return { dist: minDist, idx: minIdx };
+}
+
+const statusBar = document.getElementById('status-bar');
+const statusLabel = document.getElementById('status-label');
+const errorMsg = document.getElementById('error-msg');
+const resultsHeader = document.getElementById('results-header');
+const resultsTitle = document.getElementById('results-title');
+const resultsSub = document.getElementById('results-sub');
+const findingsList = document.getElementById('findings-list');
+const allClear = document.getElementById('all-clear');
+
+function setStatus(msg) {
+    statusBar.classList.add('visible'); statusLabel.textContent = msg;
+    errorMsg.classList.remove('visible'); resultsHeader.classList.remove('visible');
+    findingsList.innerHTML = ''; allClear.classList.remove('visible');
+}
+function clearStatus() { statusBar.classList.remove('visible'); }
+function showError(msg) { clearStatus(); errorMsg.textContent = msg; errorMsg.classList.add('visible'); }
+
+async function geocode(query) {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`, { headers:{'Accept-Language':'en'} });
+    const data = await res.json();
+    if (!data.length) throw new Error(`Could not find "${query}"`);
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name };
+}
+
+function setupAutocomplete(inputId, listId) {
+    const input = document.getElementById(inputId);
+    const list  = document.getElementById(listId);
+    let timer, cachedCoords = null;
+
+    input.addEventListener('input', () => {
+        cachedCoords = null;
+        clearTimeout(timer);
+        const q = input.value.trim();
+        if (q.length < 3) { list.classList.remove('open'); return; }
+        timer = setTimeout(async () => {
+            try {
+                const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=us`, { headers:{'Accept-Language':'en'} });
+                const data = await res.json();
+                list.innerHTML = data.map(r => `<div class="ac-item" data-lat="${r.lat}" data-lng="${r.lon}">${r.display_name}</div>`).join('');
+                list.classList.toggle('open', data.length > 0);
+            } catch(_) {}
+        }, 400);
+    });
+
+    list.addEventListener('click', e => {
+        const item = e.target.closest('.ac-item');
+        if (!item) return;
+        input.value = item.textContent;
+        cachedCoords = { lat: parseFloat(item.dataset.lat), lng: parseFloat(item.dataset.lng), name: item.textContent };
+        list.classList.remove('open');
+    });
+
+    document.addEventListener('click', e => { if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('open'); });
+
+    return { async getCoords() { return cachedCoords || geocode(input.value.trim()); } };
+}
+
+const originAC = setupAutocomplete('origin', 'origin-list');
+const destAC   = setupAutocomplete('destination', 'destination-list');
+
+async function getRoute(from, to) {
+    const res  = await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`);
+    const data = await res.json();
+    if (!data.routes?.length) throw new Error('No route found between these locations.');
+    const path = data.routes[0].geometry.coordinates.map(([lng,lat]) => [lat,lng]);
+    return { path, summary: data.routes[0].legs?.[0]?.summary || '' };
+}
+
+document.getElementById('preview-btn').addEventListener('click', async () => {
+    const originVal = document.getElementById('origin').value.trim();
+    const destVal   = document.getElementById('destination').value.trim();
+    if (!originVal || !destVal) return;
+
+    const btn = document.getElementById('preview-btn');
+    btn.disabled = true;
+    setStatus('Locating addresses...');
+
+    cameraMarkers.forEach(m => map.removeLayer(m));
+    cameraMarkers.length = 0;
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+
+    try {
+        const [from, to] = await Promise.all([originAC.getCoords(), destAC.getCoords()]);
+
+        setStatus('Getting route...');
+        const { path, summary } = await getRoute(from, to);
+
+        routeLayer = L.polyline(path, { color:'#8b5cf6', weight:4, opacity:0.7 }).addTo(map);
+        L.circleMarker([from.lat,from.lng], { radius:8, color:'#10b981', fillColor:'#10b981', fillOpacity:1, weight:2 })
+            .bindPopup(`<b>Start:</b> ${from.name||originVal}`).addTo(map);
+        L.circleMarker([to.lat,to.lng], { radius:8, color:'#ef4444', fillColor:'#ef4444', fillOpacity:1, weight:2 })
+            .bindPopup(`<b>End:</b> ${to.name||destVal}`).addTo(map);
+        map.fitBounds(routeLayer.getBounds(), { padding:[30,30] });
+
+        setStatus('Finding cameras along your route...');
+        const { cameras } = await fetch('/api/cameras?feed=traffic').then(r => r.json());
+
+        const routeCameras = cameras
+            .filter(c => c.latitude && c.longitude)
+            .map(c => { const {dist,idx} = distanceToPath(c.latitude,c.longitude,path); return {...c,_dist:dist,_idx:idx}; })
+            .filter(c => c._dist <= 8000)
+            .sort((a,b) => a._idx - b._idx)
+            .slice(0, 15);
+
+        routeCameras.forEach(c => {
+            const m = L.circleMarker([c.latitude,c.longitude], { radius:5, color:'#52525b', fillColor:'#52525b', fillOpacity:0.8, weight:1 }).addTo(map);
+            cameraMarkers.push(m);
+        });
+
+        if (!routeCameras.length) {
+            clearStatus();
+            resultsHeader.classList.add('visible');
+            resultsTitle.textContent = 'No cameras found along this route';
+            resultsSub.textContent = `${originVal} → ${destVal}`;
+            btn.disabled = false;
+            return;
+        }
+
+        setStatus(`Asking Gemini to review ${routeCameras.length} cameras...`);
+        const { findings } = await fetch('/api/scavenger/route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cameras: routeCameras }),
+        }).then(r => r.json());
+
+        clearStatus();
+
+        findings.forEach(f => {
+            const cam = routeCameras.find(c => c.name === f.name);
+            if (!cam) return;
+            const color = CATEGORY_COLOR[f.category] || '#8b5cf6';
+            const idx = cameraMarkers.findIndex(m => { const ll=m.getLatLng(); return ll.lat===cam.latitude && ll.lng===cam.longitude; });
+            if (idx >= 0) {
+                map.removeLayer(cameraMarkers[idx]);
+                cameraMarkers[idx] = L.circleMarker([cam.latitude,cam.longitude], { radius:8, color, fillColor:color, fillOpacity:0.9, weight:2 })
+                    .bindPopup(`<img class="popup-img" src="${proxyUrl(f.img_url)}" onerror="this.style.display='none'"><div class="popup-cat" style="color:${color}">${CATEGORY_EMOJI[f.category]||'📍'} ${f.category}</div><div class="popup-obs">${f.observation}</div><div class="popup-loc">${f.location}</div>`)
+                    .addTo(map);
+            }
+        });
+
+        resultsHeader.classList.add('visible');
+        resultsSub.textContent = summary || `${originVal} → ${destVal}`;
+
+        if (!findings.length) {
+            resultsTitle.textContent = 'All clear on your route';
+            allClear.classList.add('visible');
+        } else {
+            resultsTitle.textContent = `${findings.length} thing${findings.length !== 1 ? 's' : ''} to watch for`;
+            findingsList.innerHTML = findings.map(f => `
+                <div class="finding-row ${f.category}">
+                    <div class="finding-thumb"><img src="${proxyUrl(f.img_url)}" loading="lazy" onerror="this.style.display='none'"></div>
+                    <div class="finding-body">
+                        <div class="finding-cat ${f.category}">${CATEGORY_EMOJI[f.category]||'📍'} ${f.category}</div>
+                        <div class="finding-obs">${f.observation}</div>
+                        <div class="finding-loc">${f.location}${f.route?' · '+f.route:''}</div>
+                    </div>
+                </div>`).join('');
+        }
+    } catch(err) {
+        showError(err.message || 'Something went wrong.');
+    }
+
+    btn.disabled = false;
+});
+
+['origin','destination'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('preview-btn').click(); })
+);
+</script>
+</body>
+</html>

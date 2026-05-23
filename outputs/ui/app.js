@@ -247,8 +247,48 @@ function filterCameras() {
 
 // Render Entire UI State
 function renderApp() {
+    updateSidebarAlerts();
     renderListView();
     renderGalleryView();
+}
+
+// Update the sidebar alert container based on hazardous events in filtered nodes
+function updateSidebarAlerts() {
+    const alertContainer = document.getElementById('sidebar-alert-container');
+    if (!alertContainer) return;
+
+    if (currentFeed !== 'traffic') {
+        alertContainer.style.display = 'none';
+        return;
+    }
+
+    const hazards = filteredCameras.filter(cam => 
+        cam.safety_summary === 'Accident' || 
+        cam.safety_summary === 'Collision' || 
+        cam.safety_summary === 'Hazard'
+    );
+
+    if (hazards.length > 0) {
+        alertContainer.style.display = 'block';
+        alertContainer.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+        alertContainer.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        alertContainer.style.color = '#ef4444';
+        
+        let routes = [...new Set(hazards.map(c => c.route))].filter(Boolean);
+        let locations = hazards.map(c => c.name);
+        
+        alertContainer.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="font-size: 1.1em;">⚠️</span>
+                <strong>Hazard Alert</strong>
+            </div>
+            <div style="opacity: 0.9;">
+                Active incidents detected on: ${routes.join(', ') || 'this route'}.
+            </div>
+        `;
+    } else {
+        alertContainer.style.display = 'none';
+    }
 }
 
 
@@ -803,6 +843,9 @@ async function updateCountsOnly() {
             const date = new Date(data.last_updated * 1000);
             lastUpdatedEl.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
+        
+        // Update sidebar hazard alerts
+        updateSidebarAlerts();
     } catch (error) {
         console.error('Error in background count polling:', error);
     }

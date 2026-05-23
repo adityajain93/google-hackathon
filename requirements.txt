@@ -1,2 +1,3 @@
 yt-dlp
 opencv-python-headless
+google-antigravity

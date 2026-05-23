@@ -12,11 +12,13 @@ from inputs.caltrans import CaltransFeed
 from inputs.zoo_feed import ZooFeed
 from intelligence.analyzer import Analyzer
 from outputs.notifier import Notifier
-from agents.traffic_agent import TrafficAgent
-from agents.zoo_agent import ZooAgent
 from agents.car_count_agent import CarCountAgent
 import cv2
 from inputs.youtube_grabber import YoutubeFrameGrabber
+
+from agents.surveillance_agent import SurveillanceAgent
+from agents.alert_agent import AlertAgent
+
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -44,13 +46,17 @@ analyzer = Analyzer()
 notifier = Notifier()
 
 # Instantiate and start background agents
-traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
-zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
-
-traffic_agent.start()
-zoo_agent.start()
 car_count_agent.start()
+
+# Instantiate and start new Google Antigravity SDK agents
+surveillance_agent = SurveillanceAgent(caltrans_feed, zoo_feed, analyzer, notifier)
+alert_agent = AlertAgent(analyzer, notifier)
+
+print("[Server] Starting Google Antigravity SDK agents...")
+surveillance_agent.start()
+alert_agent.start()
+
 
 # Bypass SSL context for image proxying
 ssl_context = ssl.create_default_context()
@@ -180,6 +186,31 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
             return
+
+        # API Endpoint: Get background surveillance logs
+        elif path == '/api/surveillance/logs':
+            log_path = os.path.join(DIRECTORY, 'outputs', 'surveillance_log.json')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            logs = []
+            if os.path.exists(log_path):
+                try:
+                    from agents.surveillance_agent import log_lock
+                    with log_lock:
+                        with open(log_path, 'r', encoding='utf-8') as f:
+                            logs = json.load(f)
+                            if not isinstance(logs, list):
+                                logs = []
+                except Exception as e:
+                    print(f"[Server] Error reading surveillance log: {e}")
+                    
+            # Return latest entries first (reverse chronological order)
+            logs.reverse()
+            self.wfile.write(json.dumps({"status": "success", "logs": logs}).encode('utf-8'))
+            return
             
         # Fall back to standard static file serving
         return super().do_GET()
@@ -191,7 +222,6 @@ def start_server():
     
     handler = CameraProxyHandler
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", PORT), handler) as httpd:
     with http.server.ThreadingHTTPServer(("", PORT), handler) as httpd:
         print(f"[Server] Running at http://localhost:{PORT}")
         try:

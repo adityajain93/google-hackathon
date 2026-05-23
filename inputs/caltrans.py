@@ -109,6 +109,14 @@ class CaltransFeed(BaseFeed):
                                     new_cam['safety_details'] = old_cam['safety_details']
                                 if 'last_safety_analyzed_time' in old_cam:
                                     new_cam['last_safety_analyzed_time'] = old_cam['last_safety_analyzed_time']
+                                if 'air_quality_aqi' in old_cam:
+                                    new_cam['air_quality_aqi'] = old_cam['air_quality_aqi']
+                                if 'air_quality_summary' in old_cam:
+                                    new_cam['air_quality_summary'] = old_cam['air_quality_summary']
+                                if 'air_quality_css_class' in old_cam:
+                                    new_cam['air_quality_css_class'] = old_cam['air_quality_css_class']
+                                if 'last_aqi_checked_time' in old_cam:
+                                    new_cam['last_aqi_checked_time'] = old_cam['last_aqi_checked_time']
                         self.active_cameras = verified_cams
                         self.last_update_time = time.time()
                     print(f"[CaltransFeed] Update complete. Found {len(self.active_cameras)} verified cameras.")

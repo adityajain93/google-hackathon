@@ -109,3 +109,14 @@ class Analyzer:
                 return "[SIMULATION] SAFE: animals behavior normal."
 
         return "[SIMULATION] Image analysis complete. Subject is visible and stable under current lighting conditions."
+
+    def analyze_text(self, prompt, mock_fallback_response=""):
+        """Sends a text-only prompt to Gemini with simulated fallback."""
+        if self.gemini_client.api_key:
+            try:
+                print(f"[Analyzer] Running Gemini text analysis...")
+                return self.gemini_client.analyze_text(prompt)
+            except Exception as e:
+                print(f"[Analyzer] Gemini text analysis failed ({e}). Falling back to simulation...")
+        return f"[SIMULATION] {mock_fallback_response}"
+

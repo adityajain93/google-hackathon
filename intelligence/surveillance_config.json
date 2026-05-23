@@ -1,0 +1,10 @@
+{
+  "traffic": {
+    "target_details": "Inspect for accidents, lane blockages, stalled vehicles, emergency response vehicles, road construction, hazards, or heavy traffic jams. Be precise in reporting any anomalies.",
+    "check_interval_seconds": 60
+  },
+  "zoo": {
+    "target_details": "Observe animal activities. Look for any active play, running, escaping behaviors, abnormal resting positions, distress, or physical interaction. Report anything unusual.",
+    "check_interval_seconds": 60
+  }
+}

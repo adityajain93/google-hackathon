@@ -1,4 +1,5 @@
 // Application State
+let currentFeed = 'traffic';
 let cameras = [];
 let filteredCameras = [];
 let selectedCameraId = null;
@@ -8,83 +9,83 @@ let infoWindow = null;
 
 // Premium dark stylesheet for Google Maps
 const darkMapStyle = [
-    { elementType: "geometry", stylers: [{ color: "#0a0e17" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }, { weight: 2 }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
+    { elementType: "geometry", stylers: [{ color: "#07070a" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#0a0a0f" }, { weight: 2 }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#71717a" }] },
     {
         featureType: "administrative.locality",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#cbd5e1" }]
+        stylers: [{ color: "#a1a1aa" }]
     },
     {
         featureType: "poi",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#64748b" }]
+        stylers: [{ color: "#52525b" }]
     },
     {
         featureType: "poi.park",
         elementType: "geometry",
-        stylers: [{ color: "#0f172a" }]
+        stylers: [{ color: "#0a0a0f" }]
     },
     {
         featureType: "poi.park",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#475569" }]
+        stylers: [{ color: "#3f3f46" }]
     },
     {
         featureType: "road",
         elementType: "geometry",
-        stylers: [{ color: "#1e293b" }]
+        stylers: [{ color: "#18181b" }]
     },
     {
         featureType: "road",
         elementType: "geometry.stroke",
-        stylers: [{ color: "#0f172a" }]
+        stylers: [{ color: "#0a0a0f" }]
     },
     {
         featureType: "road",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#64748b" }]
+        stylers: [{ color: "#52525b" }]
     },
     {
         featureType: "road.highway",
         elementType: "geometry",
-        stylers: [{ color: "#1e293b" }]
+        stylers: [{ color: "#18181b" }]
     },
     {
         featureType: "road.highway",
         elementType: "geometry.stroke",
-        stylers: [{ color: "#0a0e17" }]
+        stylers: [{ color: "#040406" }]
     },
     {
         featureType: "road.highway",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#e2e8f0" }]
+        stylers: [{ color: "#e4e4e7" }]
     },
     {
         featureType: "transit",
         elementType: "geometry",
-        stylers: [{ color: "#0f172a" }]
+        stylers: [{ color: "#0a0a0f" }]
     },
     {
         featureType: "transit.station",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#64748b" }]
+        stylers: [{ color: "#52525b" }]
     },
     {
         featureType: "water",
         elementType: "geometry",
-        stylers: [{ color: "#080c14" }]
+        stylers: [{ color: "#050508" }]
     },
     {
         featureType: "water",
         elementType: "labels.text.fill",
-        stylers: [{ color: "#475569" }]
+        stylers: [{ color: "#3f3f46" }]
     },
     {
         featureType: "water",
         elementType: "labels.text.stroke",
-        stylers: [{ color: "#0f172a" }]
+        stylers: [{ color: "#0a0a0f" }]
     }
 ];
 
@@ -94,9 +95,12 @@ const lastUpdatedEl = document.getElementById('last-updated-time');
 const searchInput = document.getElementById('search-input');
 const routeFilter = document.getElementById('route-filter');
 const countyFilter = document.getElementById('county-filter');
+const routeFilterLabel = document.getElementById('route-filter-label');
+const countyFilterLabel = document.getElementById('county-filter-label');
 const cameraList = document.getElementById('camera-list');
 const cameraGallery = document.getElementById('camera-gallery');
 const galleryHeaderTitle = document.getElementById('gallery-header-title');
+const feedSelect = document.getElementById('feed-select');
 
 // Modal Elements
 const cameraModal = document.getElementById('camera-modal');
@@ -107,6 +111,19 @@ const modalDirection = document.getElementById('modal-direction');
 const modalCounty = document.getElementById('modal-county');
 const modalNearby = document.getElementById('modal-nearby');
 const modalCloseBtn = document.getElementById('modal-close-btn');
+
+// Modal Metadata Label Elements for Zoo Feed adjustments
+const modalLblRoute = document.getElementById('modal-lbl-route');
+const modalLblCounty = document.getElementById('modal-lbl-county');
+
+// Intelligence Sandbox Elements
+const promptSelect = document.getElementById('prompt-select');
+const customPromptGroup = document.getElementById('custom-prompt-group');
+const customPromptInput = document.getElementById('custom-prompt-input');
+const runAnalysisBtn = document.getElementById('run-analysis-btn');
+const resultPlaceholder = document.getElementById('result-placeholder');
+const resultLoader = document.getElementById('result-loader');
+const resultBody = document.getElementById('analysis-result-content');
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
@@ -134,11 +151,11 @@ function initMap() {
     infoWindow = new google.maps.InfoWindow();
 }
 
-// Fetch Camera List from Local API
+// Fetch Camera/Node List from Server API
 async function fetchCameras() {
     showLoadingState();
     try {
-        const response = await fetch('/api/cameras');
+        const response = await fetch(`/api/cameras?feed=${currentFeed}`);
         if (!response.ok) throw new Error('Network response was not ok');
         
         const data = await response.json();
@@ -168,25 +185,25 @@ function updateStats(count, timestamp) {
 // Show Loading Skeletons
 function showLoadingState() {
     cameraList.innerHTML = `
-        <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.5rem;"></div>
-        <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.5rem;"></div>
-        <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.5rem;"></div>
+        <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
+        <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
+        <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
     `;
     cameraGallery.innerHTML = `
-        <div class="camera-card shimmer" style="height: 280px; border-radius: 12px;"></div>
-        <div class="camera-card shimmer" style="height: 280px; border-radius: 12px;"></div>
-        <div class="camera-card shimmer" style="height: 280px; border-radius: 12px;"></div>
+        <div class="camera-card shimmer" style="height: 250px;"></div>
+        <div class="camera-card shimmer" style="height: 250px;"></div>
+        <div class="camera-card shimmer" style="height: 250px;"></div>
     `;
 }
 
 // Show Error Message
 function showErrorState() {
-    const errorHTML = `<div class="empty-state">Failed to load camera feeds. Please check the backend server.</div>`;
+    const errorHTML = `<div class="empty-state">Failed to load feed nodes. Please check the backend server.</div>`;
     cameraList.innerHTML = errorHTML;
     cameraGallery.innerHTML = errorHTML;
 }
 
-// Populate Filter Options
+// Populate Filter Options dynamically
 function populateFilters(camList) {
     const routes = new Set();
     const counties = new Set();
@@ -196,6 +213,7 @@ function populateFilters(camList) {
         if (cam.county) counties.add(cam.county);
     });
     
+    // Sort routes numerically/alphabetically
     const sortedRoutes = Array.from(routes).sort((a, b) => {
         const aNum = parseInt(a.replace(/\D/g, ''));
         const bNum = parseInt(b.replace(/\D/g, ''));
@@ -205,8 +223,12 @@ function populateFilters(camList) {
     
     const sortedCounties = Array.from(counties).sort();
     
-    routeFilter.innerHTML = '<option value="all">All Routes</option>';
-    countyFilter.innerHTML = '<option value="all">All Counties</option>';
+    // Update filter dropdowns
+    const routePlaceholder = currentFeed === 'traffic' ? 'All Routes' : 'All Zones';
+    const countyPlaceholder = currentFeed === 'traffic' ? 'All Counties' : 'All Sectors';
+    
+    routeFilter.innerHTML = `<option value="all">${routePlaceholder}</option>`;
+    countyFilter.innerHTML = `<option value="all">${countyPlaceholder}</option>`;
     
     sortedRoutes.forEach(route => {
         routeFilter.innerHTML += `<option value="${route}">${route}</option>`;
@@ -219,10 +241,15 @@ function populateFilters(camList) {
 
 // Setup Event Listeners
 function setupEventListeners() {
+    // Search & Filters
     searchInput.addEventListener('input', filterCameras);
     routeFilter.addEventListener('change', filterCameras);
     countyFilter.addEventListener('change', filterCameras);
     
+    // Feed Switcher
+    feedSelect.addEventListener('change', handleFeedSwitch);
+    
+    // Modal
     modalCloseBtn.addEventListener('click', closeModal);
     cameraModal.addEventListener('click', (e) => {
         if (e.target === cameraModal) closeModal();
@@ -232,10 +259,62 @@ function setupEventListeners() {
         if (e.key === 'Escape') closeModal();
     });
 
-    setInterval(refreshImages, 120000);
+    // Sandbox prompt selection trigger
+    promptSelect.addEventListener('change', () => {
+        if (promptSelect.value === 'custom') {
+            customPromptGroup.style.display = 'flex';
+        } else {
+            customPromptGroup.style.display = 'none';
+        }
+    });
+
+    // Run AI button handler
+    runAnalysisBtn.addEventListener('click', runAIAnalysis);
+
+    // Auto-refresh feeds list every 2 minutes
+    setInterval(() => {
+        if (!cameraModal.classList.contains('show')) {
+            fetchCameras();
+        }
+    }, 120000);
 }
 
-// Filter Cameras based on Sidebar Inputs
+// Handle Feed Switching
+function handleFeedSwitch() {
+    currentFeed = feedSelect.value;
+    
+    // Update UI Labels depending on feed
+    if (currentFeed === 'zoo') {
+        routeFilterLabel.textContent = 'Filter by Zone';
+        countyFilterLabel.textContent = 'Filter by Sector';
+        modalLblRoute.textContent = 'Zone:';
+        modalLblCounty.textContent = 'Sector:';
+        
+        // Relocate map to San Diego Zoo
+        const zooCenter = { lat: 32.7350, lng: -117.1500 };
+        map.setCenter(zooCenter);
+        map.setZoom(16);
+    } else {
+        routeFilterLabel.textContent = 'Filter by Route';
+        countyFilterLabel.textContent = 'Filter by County';
+        modalLblRoute.textContent = 'Route:';
+        modalLblCounty.textContent = 'County:';
+        
+        // Relocate map to Bay Area
+        const bayAreaCenter = { lat: 37.7749, lng: -122.4194 };
+        map.setCenter(bayAreaCenter);
+        map.setZoom(9.5);
+    }
+    
+    // Clear search filter state
+    searchInput.value = '';
+    selectedCameraId = null;
+    
+    // Fetch new cameras list
+    fetchCameras();
+}
+
+// Filter Nodes based on search & selector criteria
 function filterCameras() {
     const searchQuery = searchInput.value.toLowerCase().trim();
     const selectedRoute = routeFilter.value;
@@ -252,14 +331,15 @@ function filterCameras() {
         return matchesSearch && matchesRoute && matchesCounty;
     });
     
+    const feedHeaderName = currentFeed === 'traffic' ? 'Live Nodes' : 'Enclosure Nodes';
     galleryHeaderTitle.textContent = searchQuery || selectedRoute !== 'all' || selectedCounty !== 'all' 
-        ? `Filtered Feeds (${filteredCameras.length})` 
-        : `Live Feeds (${filteredCameras.length})`;
+        ? `Filtered Nodes (${filteredCameras.length})` 
+        : `${feedHeaderName} (${filteredCameras.length})`;
         
     renderApp();
 }
 
-// Main Render Function
+// Render Entire UI State
 function renderApp() {
     renderMapMarkers();
     renderListView();
@@ -276,8 +356,10 @@ function renderMapMarkers() {
         if (cam.latitude && cam.longitude) {
             const latLng = { lat: cam.latitude, lng: cam.longitude };
             const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
-            
             const isSelected = selectedCameraId === index;
+            
+            // Neon Violet for Zoo, Neon Cyan for Traffic
+            const activeColor = currentFeed === 'zoo' ? '#8b5cf6' : '#06b6d4';
             
             const marker = new google.maps.Marker({
                 position: latLng,
@@ -285,9 +367,9 @@ function renderMapMarkers() {
                 title: cam.name,
                 icon: {
                     path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: isSelected ? '#6366f1' : '#06b6d4',
+                    fillColor: isSelected ? '#ffffff' : activeColor,
                     fillOpacity: 0.9,
-                    strokeColor: '#ffffff',
+                    strokeColor: isSelected ? activeColor : '#ffffff',
                     strokeWeight: 1.5,
                     scale: isSelected ? 8 : 6
                 }
@@ -295,10 +377,10 @@ function renderMapMarkers() {
             
             const popupContent = `
                 <div style="font-family: var(--font-sans); width: 220px; display: flex; flex-direction: column; gap: 4px; padding: 2px;">
-                    <strong style="color: #0f172a; font-size: 0.85rem; line-height: 1.2;">${cam.name}</strong>
-                    <span style="color: #64748b; font-size: 0.75rem;">Nearby: ${cam.nearby}</span>
-                    <img src="${proxiedImg}" alt="${cam.name}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-top: 4px; border: 1px solid rgba(0,0,0,0.1);" />
-                    <button onclick="window.selectCameraFromMap(${index})" style="background: #06b6d4; border: none; padding: 5px 8px; border-radius: 4px; font-size: 0.75rem; color: #000; font-weight: 600; cursor: pointer; margin-top: 6px; text-align: center; width: 100%;">Focus Card</button>
+                    <strong style="color: #ffffff; font-size: 0.85rem; line-height: 1.2;">${cam.name}</strong>
+                    <span style="color: #a1a1aa; font-size: 0.75rem;">Nearby: ${cam.nearby}</span>
+                    <img src="${proxiedImg}" alt="${cam.name}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-top: 4px; border: 1px solid rgba(255,255,255,0.05);" />
+                    <button onclick="window.selectCameraFromMap(${index})" style="background: ${activeColor}; border: none; padding: 6px 8px; border-radius: 4px; font-size: 0.75rem; color: #000; font-weight: 600; cursor: pointer; margin-top: 6px; text-align: center; width: 100%;">Analyze Feed</button>
                 </div>
             `;
             
@@ -312,16 +394,17 @@ function renderMapMarkers() {
         }
     });
 
-    // Make selectCameraFromMap accessible globally for InfoWindow button click
+    // Make marker button click callback global
     window.selectCameraFromMap = (idx) => {
         selectCamera(idx, false);
+        openModal(idx);
     };
 }
 
-// Render Left Sidebar List
+// Render Left Sidebar list
 function renderListView() {
     if (filteredCameras.length === 0) {
-        cameraList.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">No cameras match the filters.</div>`;
+        cameraList.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 1rem;">No nodes found.</div>`;
         return;
     }
     
@@ -329,14 +412,20 @@ function renderListView() {
     filteredCameras.forEach((cam, idx) => {
         const item = document.createElement('div');
         item.className = `camera-list-item ${selectedCameraId === idx ? 'selected' : ''}`;
+        
+        const routeLabel = currentFeed === 'traffic' ? 'Route' : 'Zone';
+        const countyLabel = currentFeed === 'traffic' ? cam.county : cam.county;
+        
         item.innerHTML = `
             <div class="item-name">${cam.name}</div>
             <div class="item-meta">
-                <span>Route: ${cam.route} (${cam.direction})</span>
-                <span>${cam.nearby}</span>
+                <span>${routeLabel}: ${cam.route}</span>
+                <span>${countyLabel}</span>
             </div>
         `;
-        item.addEventListener('click', () => selectCamera(idx, true));
+        item.addEventListener('click', () => {
+            selectCamera(idx, true);
+        });
         cameraList.appendChild(item);
     });
 }
@@ -344,7 +433,7 @@ function renderListView() {
 // Render Card Gallery
 function renderGalleryView() {
     if (filteredCameras.length === 0) {
-        cameraGallery.innerHTML = `<div class="empty-state">No cameras matched your search criteria. Please adjust filters.</div>`;
+        cameraGallery.innerHTML = `<div class="empty-state">No camera nodes match search parameters.</div>`;
         return;
     }
     
@@ -355,7 +444,7 @@ function renderGalleryView() {
         card.className = 'camera-card';
         card.id = `cam-card-${idx}`;
         if (selectedCameraId === idx) {
-            card.style.borderColor = 'var(--accent-cyan)';
+            card.style.borderColor = 'var(--accent-violet)';
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
@@ -363,14 +452,14 @@ function renderGalleryView() {
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
-                <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23222%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23777%22>Feed Offline</text></svg>';" />
+                <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%230d0d15%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2352525b%22>FEED OFFLINE</text></svg>';" />
                 <div class="card-badge">Live</div>
             </div>
             <div class="card-body">
                 <div class="card-title">${cam.name}</div>
                 <div class="card-meta">
                     <span>${cam.nearby}</span>
-                    <span>Route ${cam.route}</span>
+                    <span>${cam.route}</span>
                 </div>
             </div>
         `;
@@ -378,11 +467,10 @@ function renderGalleryView() {
     });
 }
 
-// Select a Camera and focus it
+// Focus camera item on sidebar, map and scroll card
 function selectCamera(idx, panToMarker = true) {
     selectedCameraId = idx;
     
-    // Highlight list item and card
     renderListView();
     renderGalleryView();
     
@@ -392,14 +480,11 @@ function selectCamera(idx, panToMarker = true) {
         if (marker) {
             if (panToMarker) {
                 map.panTo(marker.getPosition());
-                map.setZoom(12);
+                map.setZoom(currentFeed === 'zoo' ? 17 : 12);
             }
-            
-            // Trigger marker click to open InfoWindow
             google.maps.event.trigger(marker, 'click');
         }
         
-        // Scroll card into view
         const card = document.getElementById(`cam-card-${idx}`);
         if (card) {
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -407,10 +492,21 @@ function selectCamera(idx, panToMarker = true) {
     }
 }
 
-// Open Detail Modal
+// Open Detail & Intelligence Sandbox Modal
 function openModal(idx) {
     const cam = filteredCameras[idx];
     if (!cam) return;
+    
+    selectedCameraId = idx;
+    
+    // Reset Sandbox outputs
+    resultPlaceholder.style.display = 'block';
+    resultLoader.style.display = 'none';
+    resultBody.style.display = 'none';
+    resultBody.textContent = '';
+    promptSelect.value = 'describe';
+    customPromptGroup.style.display = 'none';
+    customPromptInput.value = '';
     
     const timestamp = new Date().getTime();
     const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${timestamp}`;
@@ -434,8 +530,77 @@ function closeModal() {
     modalImage.src = '';
 }
 
-// Refresh all camera cards
-function refreshImages() {
-    console.log('[App] Refreshing live camera feeds...');
-    fetchCameras();
+// Run AI analysis sandbox action
+async function runAIAnalysis() {
+    const cam = filteredCameras[selectedCameraId];
+    if (!cam) return;
+
+    const objective = promptSelect.value;
+    const customPrompt = customPromptInput.value.trim();
+
+    // Verification
+    if (objective === 'custom' && !customPrompt) {
+        alert('Please enter a custom query prompt.');
+        return;
+    }
+
+    // Toggle UI States
+    resultPlaceholder.style.display = 'none';
+    resultLoader.style.display = 'flex';
+    resultBody.style.display = 'none';
+    runAnalysisBtn.disabled = true;
+    runAnalysisBtn.style.opacity = '0.6';
+
+    try {
+        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(cam.img_url)}&prompt=${objective}`;
+        if (objective === 'custom') {
+            url += `&custom_prompt=${encodeURIComponent(customPrompt)}`;
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('API Request Failed');
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            // Typing effect simulating stream output
+            typeWriter(data.result);
+        } else {
+            showAIError(data.message || 'Analysis error');
+        }
+    } catch (err) {
+        showAIError('Failed to communicate with AI analysis server. Check backend connections.');
+    }
+}
+
+// Simulates typewriter stream response
+function typeWriter(text) {
+    resultLoader.style.display = 'none';
+    resultBody.style.display = 'block';
+    
+    resultBody.textContent = '';
+    
+    let i = 0;
+    const speed = 10; // Typing speed in ms
+    
+    function type() {
+        if (i < text.length) {
+            resultBody.textContent += text.charAt(i);
+            i++;
+            setTimeout(type, speed);
+        } else {
+            runAnalysisBtn.disabled = false;
+            runAnalysisBtn.style.opacity = '1';
+        }
+    }
+    
+    type();
+}
+
+function showAIError(msg) {
+    resultLoader.style.display = 'none';
+    resultBody.style.display = 'block';
+    resultBody.textContent = `Error: ${msg}`;
+    runAnalysisBtn.disabled = false;
+    runAnalysisBtn.style.opacity = '1';
 }

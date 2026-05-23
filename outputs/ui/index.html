@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Feed Playground — Vercel Labs</title>
+    <meta name="description" content="Interactive AI playground analyzing live data feeds using Google Gemini.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header id="main-header">
+        <div class="logo-container">
+            <div class="logo-badge"></div>
+            <h1>AI Feed Playground <span class="labs-tag">LABS</span></h1>
+        </div>
+        
+        <!-- Feed Type Selector -->
+        <div class="feed-selector-wrapper">
+            <span class="feed-selector-label">Active Feed:</span>
+            <select id="feed-select" class="feed-select-premium">
+                <option value="traffic">🚦 California Traffic CCTV</option>
+                <option value="zoo">🐼 Live Zoo Animal Cams</option>
+            </select>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-item" id="stat-cameras">
+                Active Nodes: <span class="stat-val" id="active-count">0</span>
+            </div>
+            <div class="stat-item" id="stat-updated">
+                Last Refresh: <span class="stat-val" id="last-updated-time">Never</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application Container -->
+    <main class="app-container" id="app-main">
+        
+        <!-- Sidebar Controls -->
+        <aside class="sidebar" id="app-sidebar">
+            <!-- Search -->
+            <div class="search-box">
+                <input type="text" id="search-input" class="search-input" placeholder="Filter by node name or location..." aria-label="Search nodes">
+            </div>
+
+            <!-- Route/Zone Filter -->
+            <div class="filter-group">
+                <label for="route-filter" class="filter-label" id="route-filter-label">Filter by Route</label>
+                <select id="route-filter" class="filter-select">
+                    <option value="all">All Routes</option>
+                </select>
+            </div>
+
+            <!-- County/Sector Filter -->
+            <div class="filter-group">
+                <label for="county-filter" class="filter-label" id="county-filter-label">Filter by County</label>
+                <select id="county-filter" class="filter-select">
+                    <option value="all">All Counties</option>
+                </select>
+            </div>
+
+            <!-- List View -->
+            <div class="active-listing">
+                <div class="listing-title">Node Directory</div>
+                <div id="camera-list" class="camera-list-item-container">
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Side Content -->
+        <div class="content-area" id="main-content">
+            
+            <!-- Map Section -->
+            <section class="map-section" aria-label="Interactive Node Map">
+                <div id="map"></div>
+            </section>
+
+            <!-- Card Gallery -->
+            <section class="gallery-section" aria-label="Node Feeds Grid">
+                <div class="gallery-header">
+                    <h2 class="gallery-title" id="gallery-header-title">Live Node Feeds</h2>
+                </div>
+                <div class="gallery-grid" id="camera-gallery">
+                    <!-- Cards loaded dynamically -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Split-Screen Detail & Intelligence Sandbox Modal -->
+    <div class="modal" id="camera-modal" role="dialog" aria-modal="true" aria-labelledby="modal-camera-title">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close-btn" aria-label="Close modal">&times;</button>
+            
+            <div class="modal-split-container">
+                <!-- Left Column: Image -->
+                <div class="modal-left-panel">
+                    <div class="modal-img-container">
+                        <img src="" alt="" class="modal-img" id="modal-image">
+                    </div>
+                </div>
+                
+                <!-- Right Column: Info & AI Sandbox -->
+                <div class="modal-right-panel">
+                    <div class="modal-info-section">
+                        <h3 class="modal-title" id="modal-camera-title">Camera Title</h3>
+                        <div class="modal-meta-grid">
+                            <div>
+                                <span class="modal-meta-label" id="modal-lbl-route">Route:</span>
+                                <span class="modal-meta-value" id="modal-route">N/A</span>
+                            </div>
+                            <div>
+                                <span class="modal-meta-label">Direction:</span>
+                                <span class="modal-meta-value" id="modal-direction">N/A</span>
+                            </div>
+                            <div>
+                                <span class="modal-meta-label" id="modal-lbl-county">County:</span>
+                                <span class="modal-meta-value" id="modal-county">N/A</span>
+                            </div>
+                            <div>
+                                <span class="modal-meta-label">Nearby:</span>
+                                <span class="modal-meta-value" id="modal-nearby">N/A</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Intelligence Sandbox Panel -->
+                    <div class="intelligence-sandbox">
+                        <div class="sandbox-header">
+                            <div class="sandbox-pulse-dot"></div>
+                            <h4>AI Intelligence Sandbox</h4>
+                        </div>
+                        <p class="sandbox-desc">Interact with Gemini to analyze the live camera feed below. Select a goal or write a custom query.</p>
+                        
+                        <!-- Analysis Prompt Selector -->
+                        <div class="sandbox-field-group">
+                            <label for="prompt-select" class="sandbox-label">Analysis Objective</label>
+                            <select id="prompt-select" class="sandbox-select">
+                                <option value="describe">📝 General Description</option>
+                                <option value="count">🧮 Count Objects / Animals</option>
+                                <option value="hazard">⚠️ Assess Hazards / Activities</option>
+                                <option value="custom">✨ Custom User Query</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Custom Prompt Textarea (Hidden by default) -->
+                        <div class="sandbox-field-group" id="custom-prompt-group" style="display: none;">
+                            <label for="custom-prompt-input" class="sandbox-label">Custom Query Prompt</label>
+                            <textarea id="custom-prompt-input" class="sandbox-textarea" placeholder="e.g. Is there any animal sleeping in the tree or a vehicle passing by?"></textarea>
+                        </div>
+                        
+                        <!-- Action Button -->
+                        <button id="run-analysis-btn" class="sandbox-action-btn">
+                            <span class="btn-text">Run AI Analysis</span>
+                            <div class="btn-glow"></div>
+                        </button>
+                        
+                        <!-- Results Container -->
+                        <div class="sandbox-result-box" id="analysis-result-container">
+                            <div class="result-placeholder" id="result-placeholder">
+                                Waiting for analysis parameters. Select a goal and click Run.
+                            </div>
+                            <div class="result-loader" id="result-loader" style="display: none;">
+                                <div class="labs-spinner"></div>
+                                <span class="loading-text">Gemini is inspecting frame...</span>
+                            </div>
+                            <div class="result-body" id="analysis-result-content" style="display: none;">
+                                <!-- AI output markdown/text gets rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Maps JS API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key={{GOOGLE_MAPS_API_KEY}}"></script>
+    <!-- Custom Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

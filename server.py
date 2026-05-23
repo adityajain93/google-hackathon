@@ -7,25 +7,20 @@ import ssl
 import threading
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
+
+from inputs.caltrans import CaltransFeed
+from inputs.zoo_feed import ZooFeed
+from intelligence.analyzer import Analyzer
+from outputs.notifier import Notifier
+from agents.traffic_agent import TrafficAgent
+from agents.zoo_agent import ZooAgent
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+UI_DIRECTORY = os.path.join(DIRECTORY, 'outputs', 'ui')
 
-# Global variables for caching active cameras
-active_cameras = []
-cameras_lock = threading.Lock()
-last_update_time = 0
-
-# Bypass SSL verification for Caltrans feeds
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
-
+# Load environment variables
 def load_env():
-    """
-    Loads environment variables from a local .env file.
-    """
     env_path = os.path.join(DIRECTORY, '.env')
     if os.path.exists(env_path):
         print(f"[Server] Loading environment from {env_path}")
@@ -36,105 +31,31 @@ def load_env():
                     key, val = line.split('=', 1)
                     os.environ[key.strip()] = val.strip()
 
-def check_single_camera(cam):
-    """
-    Checks if a camera is active by doing a HEAD request.
-    Filters out cameras that return 'Temporarily Unavailable' placeholder images (approx 13KB).
-    """
-    try:
-        req = urllib.request.Request(
-            cam['img_url'], 
-            method='HEAD',
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req, context=ssl_context, timeout=5) as response:
-            content_length = response.getheader('Content-Length')
-            if content_length:
-                size = int(content_length)
-                # "Temporarily Unavailable" is typically ~13100 to ~13300 bytes due to timestamp differences
-                if 12500 <= size <= 13500:
-                    return None
-            return cam
-    except Exception:
-        return None
+# Load env before instantiating clients so API keys are available
+load_env()
 
-def update_cameras_worker():
-    """
-    Background worker that updates the list of active cameras.
-    """
-    global active_cameras, last_update_time
-    
-    while True:
-        print("[Server] Updating traffic camera list from Caltrans...")
-        url = 'https://cwwp2.dot.ca.gov/data/d4/cctv/cctvStatusD04.json'
-        
-        try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0'}
-            )
-            with urllib.request.urlopen(req, context=ssl_context, timeout=15) as response:
-                data = json.loads(response.read().decode('utf-8'))
-                
-            items = data.get('data', [])
-            all_cams = []
-            
-            for item in items:
-                cctv = item.get('cctv', {})
-                location = cctv.get('location', {})
-                name = location.get('locationName', '')
-                nearby = location.get('nearbyPlace', '')
-                img_url = cctv.get('imageData', {}).get('static', {}).get('currentImageURL', '')
-                
-                if img_url:
-                    all_cams.append({
-                        'name': name,
-                        'nearby': nearby,
-                        'img_url': img_url,
-                        'county': location.get('county', ''),
-                        'route': location.get('route', ''),
-                        'direction': location.get('direction', ''),
-                        'latitude': float(location.get('latitude', 0.0)),
-                        'longitude': float(location.get('longitude', 0.0))
-                    })
-            
-            print(f"[Server] Found {len(all_cams)} total cameras. Verifying active status concurrently...")
-            
-            # Prioritize major commute routes
-            major_routes = ['80', '101', '280', '580', '680', '880', '24', '92', '4', '84']
-            target_cams = []
-            other_cams = []
-            for cam in all_cams:
-                route = cam['route'].upper()
-                if any(r in route for r in major_routes):
-                    target_cams.append(cam)
-                else:
-                    other_cams.append(cam)
-            
-            cams_to_check = (target_cams + other_cams)[:250]
-            
-            verified_cams = []
-            with ThreadPoolExecutor(max_workers=20) as executor:
-                results = executor.map(check_single_camera, cams_to_check)
-                for res in results:
-                    if res:
-                        verified_cams.append(res)
-            
-            with cameras_lock:
-                active_cameras = verified_cams
-                last_update_time = time.time()
-                
-            print(f"[Server] Update complete. Found {len(active_cameras)} verified active cameras.")
-            
-        except Exception as e:
-            print(f"[Server] Error updating cameras: {e}")
-            
-        # Update every 5 minutes
-        time.sleep(300)
+# Initialize modules
+caltrans_feed = CaltransFeed()
+zoo_feed = ZooFeed()
+analyzer = Analyzer()
+notifier = Notifier()
+
+# Instantiate and start background agents
+traffic_agent = TrafficAgent(caltrans_feed, analyzer, notifier)
+zoo_agent = ZooAgent(zoo_feed, analyzer, notifier)
+
+traffic_agent.start()
+zoo_agent.start()
+
+# Bypass SSL context for image proxying
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
 class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=DIRECTORY, **kwargs)
+        # Serve static files from UI_DIRECTORY
+        super().__init__(*args, directory=UI_DIRECTORY, **kwargs)
 
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
@@ -144,7 +65,7 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
         # Intercept and dynamically inject API key into index.html
         if path in ('/', '/index.html'):
             try:
-                index_path = os.path.join(DIRECTORY, 'index.html')
+                index_path = os.path.join(UI_DIRECTORY, 'index.html')
                 with open(index_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
@@ -159,22 +80,30 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error(500, f"Error rendering index: {e}")
             return
 
-        # API Endpoint: Get list of active cameras
+        # API Endpoint: Get list of active cameras (from selected feed)
         elif path == '/api/cameras':
+            feed_type = query.get('feed', ['traffic'])[0]
+            
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
-            with cameras_lock:
-                response_data = {
-                    'last_updated': last_update_time,
-                    'cameras': active_cameras
-                }
+            if feed_type == 'zoo':
+                cams = zoo_feed.get_devices()
+                last_updated = time.time()
+            else:
+                cams = caltrans_feed.get_devices()
+                last_updated = caltrans_feed.last_update_time
+                
+            response_data = {
+                'last_updated': last_updated,
+                'cameras': cams
+            }
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
             
-        # API Endpoint: Proxy image requests to bypass CORS/SSL issues if they occur
+        # API Endpoint: Proxy image requests to bypass CORS/SSL issues
         elif path == '/api/proxy':
             image_url = query.get('url', [None])[0]
             if not image_url:
@@ -195,20 +124,46 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_error(500, f"Error proxying image: {e}")
             return
+
+        # API Endpoint: Run AI analysis (the Intelligence Playground)
+        elif path == '/api/analyze':
+            feed_type = query.get('feed', ['traffic'])[0]
+            img_url = query.get('url', [None])[0]
+            prompt = query.get('prompt', ['describe'])[0]
+            custom_prompt = query.get('custom_prompt', [None])[0]
+
+            if not img_url:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": "Missing 'url' parameter"}).encode('utf-8'))
+                return
+
+            try:
+                # Call intelligence analyzer
+                result = analyzer.analyze(feed_type, img_url, prompt, custom_prompt)
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success", "result": result}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
             
         # Fall back to standard static file serving
         return super().do_GET()
 
 def start_server():
-    # Load .env variables
-    load_env()
-    
-    # Start the background update thread
-    threading.Thread(target=update_cameras_worker, daemon=True).start()
-    
-    # Wait a few seconds for the initial scan to get some cameras
-    print("[Server] Starting initial camera scan, please wait a moment...")
-    time.sleep(3)
+    print("[Server] Starting server.py...")
+    # Wait a moment for initial caltrans fetch to complete
+    time.sleep(2)
     
     handler = CameraProxyHandler
     with socketserver.TCPServer(("", PORT), handler) as httpd:

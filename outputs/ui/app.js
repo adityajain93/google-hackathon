@@ -383,77 +383,80 @@ function startLiveImageSync() {
     filteredCameras.forEach((cam, idx) => {
         if (cam.youtube_id) return;
 
-        setTimeout(async () => {
+        setTimeout(() => {
             const card = document.getElementById(`cam-card-${cam.id}`);
             if (!card) return;
 
-            try {
-                // Step 1: Fetch the fresh CCTV frame as a blob
-                const proxyUrl = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
-                const imgResp = await fetch(proxyUrl);
-                if (!imgResp.ok) return;
-                const imgBlob = await imgResp.blob();
+            // ── Step 1: Refresh the image immediately (guaranteed to work) ──────────
+            const img = card.querySelector('.card-img');
+            const freshUrl = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
+            if (img) img.src = freshUrl;
 
-                // Step 2: Convert to data URL — this is what we display AND analyze (same bytes)
-                const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(imgBlob);
-                });
+            // ── Step 2: Independently fetch the same frame → base64 → analyze ──────
+            // Run async separately so image refresh never gets blocked by analysis
+            (async () => {
+                try {
+                    const imgResp = await fetch(freshUrl);
+                    if (!imgResp.ok) return;
+                    const imgBlob = await imgResp.blob();
 
-                // Step 3: Update the card image immediately with the data URL
-                const img = card.querySelector('.card-img');
-                if (img) img.src = dataUrl;
+                    // Convert blob → base64 (same bytes Gemini will analyze)
+                    const b64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(imgBlob);
+                    });
 
-                // Step 4: POST the same base64 bytes to /api/analyze_frame — zero frame drift
-                const b64 = dataUrl.split(',')[1];
-                const analyzeResp = await fetch('/api/analyze_frame', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ feed: 'traffic', prompt: 'count', image_b64: b64 })
-                });
-                if (!analyzeResp.ok) return;
-                const data = await analyzeResp.json();
-                if (data.status !== 'success') return;
+                    // POST to /api/analyze_frame — Gemini sees the exact fetched frame
+                    const analyzeResp = await fetch('/api/analyze_frame', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ feed: 'traffic', prompt: 'count', image_b64: b64 })
+                    });
+                    if (!analyzeResp.ok) return;
+                    const data = await analyzeResp.json();
+                    if (data.status !== 'success') return;
 
-                const summary = extractCountSummary(data.result);
-                if (!summary) return;
+                    const summary = extractCountSummary(data.result);
+                    if (!summary) return;
 
-                cam.latest_count_summary = summary;
-                cam.latest_count_details = data.result;
+                    cam.latest_count_summary = summary;
+                    cam.latest_count_details = data.result;
 
-                // Update card count badge
-                const badgeContainer = card.querySelector('.card-badges');
-                if (badgeContainer) {
-                    let countBadge = badgeContainer.querySelector('.count-badge');
-                    if (!countBadge) {
-                        countBadge = document.createElement('div');
-                        countBadge.className = 'count-badge traffic-accent';
-                        const liveBadge = badgeContainer.querySelector('.card-badge');
-                        if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
-                        else badgeContainer.appendChild(countBadge);
-                    }
-                    countBadge.textContent = summary;
-                }
-
-                // Update sidebar list badge
-                const listItem = document.getElementById(`cam-list-item-${cam.id}`);
-                if (listItem) {
-                    const badgesWrapper = listItem.querySelector('.item-badges');
-                    if (badgesWrapper) {
-                        let countPill = badgesWrapper.querySelector('.list-count-badge');
-                        if (!countPill) {
-                            countPill = document.createElement('span');
-                            countPill.className = 'list-count-badge traffic-accent';
-                            badgesWrapper.appendChild(countPill);
+                    // Update card count badge
+                    const badgeContainer = card.querySelector('.card-badges');
+                    if (badgeContainer) {
+                        let countBadge = badgeContainer.querySelector('.count-badge');
+                        if (!countBadge) {
+                            countBadge = document.createElement('div');
+                            countBadge.className = 'count-badge traffic-accent';
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
+                            else badgeContainer.appendChild(countBadge);
                         }
-                        countPill.textContent = summary;
+                        countBadge.textContent = summary;
                     }
+
+                    // Update sidebar list badge
+                    const listItem = document.getElementById(`cam-list-item-${cam.id}`);
+                    if (listItem) {
+                        const badgesWrapper = listItem.querySelector('.item-badges');
+                        if (badgesWrapper) {
+                            let countPill = badgesWrapper.querySelector('.list-count-badge');
+                            if (!countPill) {
+                                countPill = document.createElement('span');
+                                countPill.className = 'list-count-badge traffic-accent';
+                                badgesWrapper.appendChild(countPill);
+                            }
+                            countPill.textContent = summary;
+                        }
+                    }
+                } catch (e) {
+                    // Analysis failed — image already refreshed above, count stays as-is
                 }
-            } catch (e) {
-                // Silently fail — card stays as-is
-            }
+            })();
+
         }, idx * 1000);
     });
 }
@@ -637,11 +640,15 @@ async function updateCountsOnly() {
         
         const data = await response.json();
         const updatedCameras = data.cameras || [];
-        
-        // Sync local camera data cache
+        // Single pass: sync cache + refresh image on count change + update all badges
         updatedCameras.forEach(updatedCam => {
             const localCam = cameras.find(c => c.id === updatedCam.id);
             if (localCam) {
+                // Detect if CarCountAgent produced a new count since last poll
+                const countChanged = updatedCam.latest_count_summary &&
+                                    updatedCam.latest_count_summary !== localCam.latest_count_summary;
+
+                // Sync cache
                 localCam.latest_count_summary = updatedCam.latest_count_summary;
                 localCam.latest_count_details = updatedCam.latest_count_details;
                 localCam.safety_summary = updatedCam.safety_summary;
@@ -649,14 +656,23 @@ async function updateCountsOnly() {
                 localCam.air_quality_aqi = updatedCam.air_quality_aqi;
                 localCam.air_quality_summary = updatedCam.air_quality_summary;
                 localCam.air_quality_css_class = updatedCam.air_quality_css_class;
+
+                // When count changes → refresh card image so display matches the analyzed frame
+                if (countChanged && !updatedCam.youtube_id && updatedCam.img_url) {
+                    const syncCard = document.getElementById(`cam-card-${updatedCam.id}`);
+                    if (syncCard) {
+                        const syncImg = syncCard.querySelector('.card-img');
+                        if (syncImg) syncImg.src = `/api/proxy?url=${encodeURIComponent(updatedCam.img_url)}&t=${Date.now()}`;
+                    }
+                }
             }
-            
+
             // Update card element badges directly
             const card = document.getElementById(`cam-card-${updatedCam.id}`);
             if (card) {
                 const badgeContainer = card.querySelector('.card-badges');
                 if (badgeContainer) {
-                    // Update/insert safety badge
+                    // Safety badge
                     let safetyBadge = badgeContainer.querySelector('.safety-badge');
                     if (updatedCam.safety_summary) {
                         if (!safetyBadge) {
@@ -675,35 +691,29 @@ async function updateCountsOnly() {
                         safetyBadge.remove();
                     }
 
-                    // Update/insert count badge
+                    // Count badge
                     let countBadge = badgeContainer.querySelector('.count-badge');
                     if (updatedCam.latest_count_summary) {
                         if (!countBadge) {
                             countBadge = document.createElement('div');
                             countBadge.className = `count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
                             const liveBadge = badgeContainer.querySelector('.card-badge');
-                            if (liveBadge) {
-                                badgeContainer.insertBefore(countBadge, liveBadge);
-                            } else {
-                                badgeContainer.appendChild(countBadge);
-                            }
+                            if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
+                            else badgeContainer.appendChild(countBadge);
                         }
                         countBadge.textContent = updatedCam.latest_count_summary;
                     } else if (countBadge) {
                         countBadge.remove();
                     }
 
-                    // Update/insert AQI badge
+                    // AQI badge
                     let aqiBadge = badgeContainer.querySelector('.aqi-badge');
                     if (updatedCam.air_quality_summary) {
                         if (!aqiBadge) {
                             aqiBadge = document.createElement('div');
                             const liveBadge = badgeContainer.querySelector('.card-badge');
-                            if (liveBadge) {
-                                badgeContainer.insertBefore(aqiBadge, liveBadge);
-                            } else {
-                                badgeContainer.appendChild(aqiBadge);
-                            }
+                            if (liveBadge) badgeContainer.insertBefore(aqiBadge, liveBadge);
+                            else badgeContainer.appendChild(aqiBadge);
                         }
                         aqiBadge.className = `aqi-badge ${updatedCam.air_quality_css_class || ''}`;
                         aqiBadge.textContent = `AQI ${updatedCam.air_quality_aqi}`;
@@ -713,15 +723,15 @@ async function updateCountsOnly() {
                     }
                 }
             }
-            
+
             // Update sidebar item badges directly
             const listItem = document.getElementById(`cam-list-item-${updatedCam.id}`);
             if (listItem) {
                 const header = listItem.querySelector('.item-header');
                 if (header) {
-                    let badgesWrapper = header.querySelector('.item-badges');
+                    const badgesWrapper = header.querySelector('.item-badges');
                     if (badgesWrapper) {
-                        // Update safety pill
+                        // Safety pill
                         let safetyPill = badgesWrapper.querySelector('.list-safety-badge');
                         if (updatedCam.safety_summary) {
                             if (!safetyPill) {
@@ -740,7 +750,7 @@ async function updateCountsOnly() {
                             safetyPill.remove();
                         }
 
-                        // Update count pill
+                        // Count pill
                         let countPill = badgesWrapper.querySelector('.list-count-badge');
                         if (updatedCam.latest_count_summary) {
                             if (!countPill) {
@@ -753,7 +763,7 @@ async function updateCountsOnly() {
                             countPill.remove();
                         }
 
-                        // Update AQI pill
+                        // AQI pill
                         let aqiPill = badgesWrapper.querySelector('.list-aqi-badge');
                         if (updatedCam.air_quality_summary) {
                             if (!aqiPill) {
@@ -770,7 +780,7 @@ async function updateCountsOnly() {
                 }
             }
         });
-        
+
         // Update Last Refresh timestamp in UI header
         if (data.last_updated && lastUpdatedEl) {
             const date = new Date(data.last_updated * 1000);
@@ -780,3 +790,4 @@ async function updateCountsOnly() {
         console.error('Error in background count polling:', error);
     }
 }
+

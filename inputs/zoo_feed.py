@@ -1,78 +1,69 @@
-import time
 from inputs.base import BaseFeed
 
 class ZooFeed(BaseFeed):
     def __init__(self):
         self.cams = [
             {
-                'id': 'zoo_panda_smithsonian',
-                'name': 'Smithsonian National Zoo — Panda Cam',
-                'nearby': 'Giant Panda Habitat',
+                'id': 'zoo_otter_seattle',
+                'name': 'Seattle Aquarium — Sea Otter & Fur Seal Cam',
+                'nearby': 'Marine Mammal Habitat',
                 'img_url': 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=800&auto=format&fit=crop&q=80',
                 'youtube_id': 'NqOmHpwMUxs',
-                'county': 'Washington DC',
+                'county': 'Seattle WA',
                 'route': 'Zone A',
-                'direction': 'Habitat View',
-                'latitude': 38.9296,
-                'longitude': -77.0502
-            },
-            {
-                'id': 'zoo_elephant_houston',
-                'name': 'Houston Zoo — Elephant Habitat Cam',
-                'nearby': 'Asian Elephant Yard',
-                'img_url': 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=800&auto=format&fit=crop&q=80',
-                'youtube_id': 'cTi5sCsUSfc',
-                'county': 'Houston TX',
-                'route': 'Zone B',
-                'direction': 'Yard View',
-                'latitude': 29.7159,
-                'longitude': -95.3908
-            },
-            {
-                'id': 'zoo_gorilla_houston',
-                'name': 'Houston Zoo — Gorilla Habitat Cam',
-                'nearby': 'Gorilla Habitat',
-                'img_url': 'https://images.unsplash.com/photo-1540573133985-87b6da6d54a9?w=800&auto=format&fit=crop&q=80',
-                'youtube_id': 'PcAOecvAh1U',
-                'county': 'Houston TX',
-                'route': 'Zone B',
-                'direction': 'Habitat View',
-                'latitude': 29.7162,
-                'longitude': -95.3912
-            },
-            {
-                'id': 'zoo_penguin_sandiego',
-                'name': 'San Diego Zoo — Penguin Cam',
-                'nearby': 'Conrad Prebys Africa Rocks',
-                'img_url': 'https://images.unsplash.com/photo-1517783999520-f068d7431a60?w=800&auto=format&fit=crop&q=80',
-                'youtube_id': '1NoSs03ZrlY',
-                'county': 'San Diego CA',
-                'route': 'Zone C',
                 'direction': 'Pool View',
-                'latitude': 32.7353,
-                'longitude': -117.1490
+                'latitude': 47.6063,
+                'longitude': -122.3425,
+                'is_youtube': True
             },
             {
                 'id': 'zoo_penguin_pittsburgh',
-                'name': 'Penguin Cam Live (Pittsburgh Zoo)',
-                'nearby': 'Penguin Pool',
+                'name': 'Pittsburgh Zoo — Penguin Cam',
+                'nearby': 'PPG Aquarium Penguin Pool',
                 'img_url': 'https://images.unsplash.com/photo-1517783999520-f068d7431a60?w=800&auto=format&fit=crop&q=80',
                 'youtube_id': 'cTi5sCsUSfc',
-                'county': 'Pittsburgh Zoo',
-                'route': 'Zone D',
-                'direction': 'Underwater View',
-                'latitude': 32.7348,
-                'longitude': -117.1512,
+                'county': 'Pittsburgh PA',
+                'route': 'Zone B',
+                'direction': 'Pool View',
+                'latitude': 40.4519,
+                'longitude': -79.9220,
                 'is_youtube': True
-            }
+            },
+            {
+                'id': 'zoo_tiger_turpentine',
+                'name': 'Turpentine Creek — Tiger Cam',
+                'nearby': 'Big Cat Refuge',
+                'img_url': 'https://images.unsplash.com/photo-1540573133985-87b6da6d54a9?w=800&auto=format&fit=crop&q=80',
+                'youtube_id': 'PcAOecvAh1U',
+                'county': 'Eureka Springs AR',
+                'route': 'Zone C',
+                'direction': 'Habitat View',
+                'latitude': 36.4012,
+                'longitude': -93.7185,
+                'is_youtube': True
+            },
+            {
+                'id': 'zoo_giraffe_greenville',
+                'name': 'EarthCam — Giraffe Paddock Cam',
+                'nearby': 'Giraffe Paddock, Greenville SC',
+                'img_url': 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=800&auto=format&fit=crop&q=80',
+                'youtube_id': '1NoSs03ZrlY',
+                'county': 'Greenville SC',
+                'route': 'Zone D',
+                'direction': 'Paddock View',
+                'latitude': 34.8526,
+                'longitude': -82.3940,
+                'is_youtube': True
+            },
         ]
 
     def get_devices(self):
-        # Zoo feeds are static mock devices but represent active cameras
         return self.cams
 
     def get_latest_frame(self, device_id):
         for cam in self.cams:
             if cam['id'] == device_id:
+                if cam.get('youtube_id'):
+                    return f"https://www.youtube.com/watch?v={cam['youtube_id']}"
                 return cam['img_url']
         return None

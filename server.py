@@ -12,15 +12,12 @@ from inputs.caltrans import CaltransFeed
 from inputs.zoo_feed import ZooFeed
 from intelligence.analyzer import Analyzer
 from outputs.notifier import Notifier
-from agents.car_count_agent import CarCountAgent
+from agents.camera_analysis_agent import CameraAnalysisAgent
+from agents.alert_agent import AlertAgent
 import cv2
 from agents.scavenger_agent import ScavengerAgent
 from inputs.youtube_grabber import YoutubeFrameGrabber
-from agents.safety_agent import SafetyAgent
 from agents.air_quality_agent import AirQualityAgent
-
-from agents.surveillance_agent import SurveillanceAgent
-from agents.alert_agent import AlertAgent
 
 
 PORT = 8000
@@ -48,23 +45,15 @@ zoo_feed = ZooFeed()
 analyzer = Analyzer()
 notifier = Notifier()
 
-# Instantiate and start background agents
-car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
-safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
+# Start unified analysis pipeline
+camera_agent = CameraAnalysisAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 air_quality_agent = AirQualityAgent(caltrans_feed)
-
 scavenger_agent = ScavengerAgent(caltrans_feed, analyzer.gemini_client)
-
-car_count_agent.start()
-safety_agent.start()
-air_quality_agent.start()
-
-# Instantiate and start autonomous surveillance + alerting agents
-surveillance_agent = SurveillanceAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 alert_agent = AlertAgent(analyzer, notifier)
 
-print("[Server] Starting background surveillance & alert agents...")
-surveillance_agent.start()
+print("[Server] Starting CameraAnalysisAgent + AlertAgent pipeline...")
+camera_agent.start()
+air_quality_agent.start()
 alert_agent.start()
 
 
@@ -200,28 +189,26 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
             return
 
-        # API Endpoint: Get background surveillance logs
-        elif path == '/api/surveillance/logs':
-            log_path = os.path.join(DIRECTORY, 'outputs', 'surveillance_log.json')
+        # API Endpoint: Get analysis logs (also aliased from old /api/surveillance/logs)
+        elif path in ('/api/analysis/logs', '/api/surveillance/logs'):
+            from agents.camera_analysis_agent import LOG_PATH as ANALYSIS_LOG, log_lock
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            
+
             logs = []
-            if os.path.exists(log_path):
+            if os.path.exists(ANALYSIS_LOG):
                 try:
-                    from agents.surveillance_agent import log_lock
                     with log_lock:
-                        with open(log_path, 'r', encoding='utf-8') as f:
+                        with open(ANALYSIS_LOG, 'r', encoding='utf-8') as f:
                             logs = json.load(f)
                             if not isinstance(logs, list):
                                 logs = []
                 except Exception as e:
-                    print(f"[Server] Error reading surveillance log: {e}")
-                    
-            # Return latest entries first (reverse chronological order)
-            logs.reverse()
+                    print(f"[Server] Error reading analysis log: {e}")
+
+            logs.reverse()  # Latest first
             self.wfile.write(json.dumps({"status": "success", "logs": logs}).encode('utf-8'))
             return
             

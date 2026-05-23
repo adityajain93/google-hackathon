@@ -3,12 +3,9 @@ import json
 import time
 import asyncio
 import threading
-from google.antigravity import Agent, LocalAgentConfig
-from google.antigravity.triggers import every, TriggerContext
-
+from intelligence.analyzer import Analyzer
 from inputs.caltrans import CaltransFeed
 from inputs.zoo_feed import ZooFeed
-from intelligence.analyzer import Analyzer
 
 # Global singletons for tools to reference
 caltrans_feed = CaltransFeed()
@@ -20,17 +17,14 @@ LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 
 # Lock to make log writes thread-safe
 log_lock = threading.Lock()
+last_analyzed = {}
 
 # =============================================================================
-# Agent Custom Tools
+# Agent Tools (reusable functions)
 # =============================================================================
 
 def get_cameras_to_inspect(feed_type: str) -> str:
-    """Retrieves the list of active camera nodes and their current image URLs.
-
-    Args:
-        feed_type: The type of feed, either 'traffic' or 'zoo'.
-    """
+    """Retrieves the list of active camera nodes and their current image URLs."""
     feed = caltrans_feed if feed_type == 'traffic' else zoo_feed
     devices = feed.get_devices()
     if not devices:
@@ -38,8 +32,7 @@ def get_cameras_to_inspect(feed_type: str) -> str:
     return json.dumps([{"id": d["id"], "name": d["name"], "img_url": d["img_url"]} for d in devices])
 
 def get_surveillance_config() -> str:
-    """Loads the surveillance dynamic configuration (target prompts and details) from intelligence/surveillance_config.json.
-    """
+    """Loads the surveillance dynamic configuration from intelligence/surveillance_config.json."""
     default_config = {
         "traffic": {
             "target_details": "Inspect for accidents, lane blockages, stalled vehicles, emergency response vehicles, road construction, hazards, or heavy traffic jams.",
@@ -55,35 +48,20 @@ def get_surveillance_config() -> str:
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            print(f"[SurveillanceAgentTool] Error reading config: {e}")
+            print(f"[SurveillanceAgent] Error reading config: {e}")
     return json.dumps(default_config)
 
 def analyze_camera_frame(feed_type: str, camera_id: str, prompt: str) -> str:
-    """Analyzes a specific camera feed using Gemini multimodal analysis.
-
-    Args:
-        feed_type: Either 'traffic' or 'zoo'.
-        camera_id: The unique identifier of the camera.
-        prompt: The surveillance target prompt to check the image against.
-    """
+    """Analyzes a specific camera feed using Gemini multimodal analysis."""
     feed = caltrans_feed if feed_type == 'traffic' else zoo_feed
     img_url = feed.get_latest_frame(camera_id)
     if not img_url:
         return f"Error: Could not retrieve latest frame URL for camera {camera_id}."
-    
     result = analyzer.analyze(feed_type, img_url, 'custom', prompt)
     return result
 
 def write_to_surveillance_log(camera_id: str, camera_name: str, feed_type: str, prompt_used: str, analysis_result: str) -> str:
-    """Writes the camera surveillance analysis results to the shared surveillance log file.
-
-    Args:
-        camera_id: Unique ID of the camera.
-        camera_name: Friendly name of the camera.
-        feed_type: Either 'traffic' or 'zoo'.
-        prompt_used: The prompt string used for the inspection.
-        analysis_result: The raw text report returned by the camera analysis.
-    """
+    """Writes the camera surveillance analysis results to the shared surveillance log file."""
     entry = {
         "timestamp": time.time(),
         "feed_type": feed_type,
@@ -93,7 +71,7 @@ def write_to_surveillance_log(camera_id: str, camera_name: str, feed_type: str, 
         "analysis_result": analysis_result,
         "processed": False
     }
-    
+
     with log_lock:
         logs = []
         if os.path.exists(LOG_PATH):
@@ -104,13 +82,13 @@ def write_to_surveillance_log(camera_id: str, camera_name: str, feed_type: str, 
                         logs = []
             except Exception:
                 logs = []
-        
+
         logs.append(entry)
-        
+
         # Keep only latest 100 entries
         if len(logs) > 100:
             logs = logs[-100:]
-            
+
         try:
             os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
             with open(LOG_PATH, 'w', encoding='utf-8') as f:
@@ -120,52 +98,106 @@ def write_to_surveillance_log(camera_id: str, camera_name: str, feed_type: str, 
             return f"Error writing log: {e}"
 
 # =============================================================================
-# Agent Periodic Trigger Function
+# Core Surveillance Task (called periodically)
 # =============================================================================
 
-async def check_feeds(ctx: TriggerContext):
-    print("[SurveillanceAgent] Trigger fired. Inspecting camera feeds...")
-    await ctx.send(
-        "Surveillance Check Cycle: Retrieve the surveillance configuration, fetch all active cameras in 'traffic' and 'zoo' feeds, inspect each camera using analyze_camera_frame with the target details prompt, and write each inspection report to the surveillance log using write_to_surveillance_log."
-    )
+async def check_feeds():
+    """Run one full cycle of surveillance across all cameras."""
+    print("[SurveillanceAgent] Running surveillance cycle...")
+    try:
+        config_str = get_surveillance_config()
+        config = json.loads(config_str)
+        now = time.time()
+
+        # 1. Process Traffic Feed
+        traffic_cfg = config.get("traffic", {})
+        traffic_prompt = traffic_cfg.get("target_details", "")
+        traffic_interval = traffic_cfg.get("check_interval_seconds", 60)
+
+        devices_str = get_cameras_to_inspect("traffic")
+        try:
+            devices = json.loads(devices_str)
+        except Exception:
+            devices = []
+
+        for dev in devices:
+            dev_id = dev["id"]
+            last_time = last_analyzed.get(dev_id, 0)
+            if now - last_time >= traffic_interval:
+                print(f"[SurveillanceAgent] Analyzing traffic camera: {dev['name']}")
+                analysis = analyze_camera_frame("traffic", dev_id, traffic_prompt)
+                write_to_surveillance_log(dev_id, dev["name"], "traffic", traffic_prompt, analysis)
+                last_analyzed[dev_id] = now
+
+        # 2. Process Zoo Feed
+        zoo_cfg = config.get("zoo", {})
+        zoo_prompt = zoo_cfg.get("target_details", "")
+        zoo_interval = zoo_cfg.get("check_interval_seconds", 60)
+
+        zoo_devices_str = get_cameras_to_inspect("zoo")
+        try:
+            zoo_devices = json.loads(zoo_devices_str)
+        except Exception:
+            zoo_devices = []
+
+        for dev in zoo_devices:
+            dev_id = dev["id"]
+            last_time = last_analyzed.get(dev_id, 0)
+            if now - last_time >= zoo_interval:
+                print(f"[SurveillanceAgent] Analyzing zoo camera: {dev['name']}")
+                analysis = analyze_camera_frame("zoo", dev_id, zoo_prompt)
+                write_to_surveillance_log(dev_id, dev["name"], "zoo", zoo_prompt, analysis)
+                last_analyzed[dev_id] = now
+
+    except Exception as e:
+        print(f"[SurveillanceAgent] Error during surveillance cycle: {e}")
+
 
 # =============================================================================
-# SurveillanceAgent Class Wrapper
+# SurveillanceAgent Class
 # =============================================================================
 
 class SurveillanceAgent:
-    def __init__(self, caltrans_feed, zoo_feed, analyzer, notifier):
-        self.caltrans_feed = caltrans_feed
-        self.zoo_feed = zoo_feed
-        self.analyzer = analyzer
-        self.notifier = notifier
+    """Background surveillance agent that periodically scans all camera feeds
+    using Gemini multimodal analysis and writes results to the surveillance log.
+    
+    Uses a direct asyncio event loop (no external SDK wrapper) for maximum
+    stability when embedded in a long-running server process.
+    """
+
+    POLL_INTERVAL_SECONDS = 30  # How often to check (config may gate individual cameras)
+
+    def __init__(self, caltrans_feed_ref, zoo_feed_ref, analyzer_ref, notifier_ref):
         self.running = False
+        self._thread = None
 
     def start(self):
+        """Start the agent in a background daemon thread."""
+        if self.running:
+            print("[SurveillanceAgent] Already running.")
+            return
         self.running = True
-        def run():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(self._run_async())
-            
-        threading.Thread(target=run, daemon=True).start()
+        self._thread = threading.Thread(target=self._run, name="SurveillanceAgent", daemon=True)
+        self._thread.start()
+        print("[SurveillanceAgent] Started background surveillance agent.")
 
-    async def _run_async(self):
-        timer_trigger = every(60, check_feeds)
-        config = LocalAgentConfig(
-            system_instructions=(
-                "You are an automated camera surveillance agent. Your job is to monitor feeds and log analysis reports. "
-                "When triggered, you must perform these steps in order:\n"
-                "1. Read the surveillance configuration using get_surveillance_config.\n"
-                "2. Fetch the active cameras for 'traffic' and 'zoo' using get_cameras_to_inspect.\n"
-                "3. For each camera, run analyze_camera_frame using the correct target prompt from the config.\n"
-                "4. Log the result for each camera using write_to_surveillance_log."
-            ),
-            tools=[get_cameras_to_inspect, get_surveillance_config, analyze_camera_frame, write_to_surveillance_log],
-            triggers=[timer_trigger],
-        )
-        
-        async with Agent(config) as agent:
-            print("[SurveillanceAgent] Running with Antigravity SDK triggers...")
-            while self.running:
-                await asyncio.sleep(1)
+    def stop(self):
+        self.running = False
+
+    def _run(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self._loop())
+        finally:
+            loop.close()
+
+    async def _loop(self):
+        print(f"[SurveillanceAgent] Agent loop started. Polling every {self.POLL_INTERVAL_SECONDS}s.")
+        while self.running:
+            try:
+                await check_feeds()
+            except Exception as e:
+                print(f"[SurveillanceAgent] Unhandled error in loop: {e}")
+            # Wait before next cycle
+            await asyncio.sleep(self.POLL_INTERVAL_SECONDS)

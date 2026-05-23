@@ -33,10 +33,16 @@ class ScavengerAgent:
 
     def scan_route_cameras(self, cameras):
         """Scan a list of cameras along a route. Returns only notable findings."""
+        print(f"[ScavengerAgent] Scanning {len(cameras)} cameras along route:")
+        for c in cameras:
+            print(f"  → {c.get('name')} | {c.get('img_url')}")
+
         findings = []
         for cam in cameras:
             try:
+                print(f"[ScavengerAgent] Asking Gemini about: {cam.get('name')}")
                 raw = self.gemini.analyze_image(cam["img_url"], ROUTE_PROMPT).strip()
+                print(f"[ScavengerAgent] Gemini: {raw}")
                 if raw.upper().startswith("[ALL_CLEAR]") or "ALL_CLEAR" in raw.upper():
                     continue
 

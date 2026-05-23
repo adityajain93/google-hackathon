@@ -514,6 +514,13 @@ h1 {
     object-fit: contain;
 }
 
+.modal-youtube-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 8px;
+}
+
 .modal-right-panel {
     padding: 1.5rem;
     display: flex;

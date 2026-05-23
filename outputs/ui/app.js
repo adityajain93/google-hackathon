@@ -187,6 +187,11 @@ function setupEventListeners() {
     setInterval(() => {
         updateCountsOnly();
     }, 15000);
+
+    // Auto-refresh card images + re-analyze car counts every 30 seconds
+    setInterval(() => {
+        startLiveImageSync();
+    }, 30000);
 }
 
 // Handle Feed Switching
@@ -365,6 +370,95 @@ function renderGalleryView() {
         `;
         cameraGallery.appendChild(card);
     });
+
+    // Kick off live image+count sync immediately after render
+    startLiveImageSync();
+}
+
+// Live Image + Count Sync: refreshes each visible card's image and re-analyzes vehicle count.
+// Cameras are staggered (1 per second) to avoid simultaneous API calls.
+function startLiveImageSync() {
+    if (currentFeed !== 'traffic') return; // Only for traffic cameras
+
+    filteredCameras.forEach((cam, idx) => {
+        if (cam.youtube_id) return; // Skip YouTube streams — they're live embeds
+
+        setTimeout(async () => {
+            // 1. Refresh the card image with a new timestamp (gets a fresh CCTV frame)
+            const card = document.getElementById(`cam-card-${cam.id}`);
+            if (!card) return;
+            const img = card.querySelector('.card-img');
+            if (img) {
+                img.src = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
+            }
+
+            // 2. Trigger a fresh count analysis for this camera
+            try {
+                const resp = await fetch(`/api/analyze?feed=traffic&url=${encodeURIComponent(cam.img_url)}&prompt=count`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status !== 'success') return;
+
+                const summary = extractCountSummary(data.result);
+                if (!summary) return;
+
+                // Update local camera cache
+                cam.latest_count_summary = summary;
+                cam.latest_count_details = data.result;
+
+                // Update the count badge on the card directly
+                const badgeContainer = card.querySelector('.card-badges');
+                if (badgeContainer) {
+                    let countBadge = badgeContainer.querySelector('.count-badge');
+                    if (!countBadge) {
+                        countBadge = document.createElement('div');
+                        countBadge.className = 'count-badge traffic-accent';
+                        const liveBadge = badgeContainer.querySelector('.card-badge');
+                        if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
+                        else badgeContainer.appendChild(countBadge);
+                    }
+                    countBadge.textContent = summary;
+                }
+
+                // Update the sidebar list badge too
+                const listItem = document.getElementById(`cam-list-item-${cam.id}`);
+                if (listItem) {
+                    const badgesWrapper = listItem.querySelector('.item-badges');
+                    if (badgesWrapper) {
+                        let countPill = badgesWrapper.querySelector('.list-count-badge');
+                        if (!countPill) {
+                            countPill = document.createElement('span');
+                            countPill.className = 'list-count-badge traffic-accent';
+                            badgesWrapper.appendChild(countPill);
+                        }
+                        countPill.textContent = summary;
+                    }
+                }
+            } catch (e) {
+                // Silently fail — count badge stays as-is
+            }
+        }, idx * 1000); // Stagger: 1 second apart per camera
+    });
+}
+
+// Client-side count parser — mirrors the backend extract_count_summary logic
+function extractCountSummary(text) {
+    if (!text) return null;
+    const clean = text.replace('[SIMULATION]', '').trim();
+    // Primary: structured output "Total: N vehicles"
+    const totalMatch = clean.match(/Total:\s*(\d+)\s*vehicles?/i);
+    if (totalMatch) return `${totalMatch[1]} Vehicles`;
+    // Fallback: sum individual vehicle category counts
+    const vehicleMatches = clean.match(/(\d+)\s*(?:car|truck|motorcycle|vehicle)s?/gi);
+    if (vehicleMatches) {
+        const total = vehicleMatches.reduce((sum, m) => sum + parseInt(m.match(/\d+/)[0]), 0);
+        return `${total} Vehicles`;
+    }
+    const approxMatch = clean.match(/(?:approximately|count:?)\s*(\d+)/i);
+    if (approxMatch) return `${approxMatch[1]} Vehicles`;
+    const numMatch = clean.match(/(\d+)/);
+    if (numMatch) return `${numMatch[1]} Vehicles`;
+    return null;
 }
 
 // Focus camera item on sidebar, map and scroll card

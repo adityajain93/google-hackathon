@@ -191,7 +191,6 @@ def start_server():
     
     handler = CameraProxyHandler
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", PORT), handler) as httpd:
     with http.server.ThreadingHTTPServer(("", PORT), handler) as httpd:
         print(f"[Server] Running at http://localhost:{PORT}")
         try:

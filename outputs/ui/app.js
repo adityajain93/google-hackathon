@@ -290,13 +290,12 @@ function renderGalleryView() {
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
-        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">

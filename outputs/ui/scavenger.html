@@ -247,7 +247,7 @@
     <div class="route-form">
         <div class="route-inputs">
             <div class="ac-wrap">
-                <input type="text" id="origin" class="route-input" placeholder="Starting from..." autocomplete="off">
+                <input type="text" id="origin" class="route-input" placeholder="Starting from..." autocomplete="off" value="San Francisco Ferry Building, 1 Ferry Plaza, San Francisco, CA 94111">
                 <div class="ac-list" id="origin-list"></div>
             </div>
             <div class="route-arrow">→</div>
@@ -303,10 +303,22 @@ function haversineDist(lat1, lng1, lat2, lng2) {
     return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function distanceToPath(camLat, camLng, path) {
-    let minDist = Infinity, minIdx = 0;
-    path.forEach(([lat,lng],i) => { const d=haversineDist(camLat,camLng,lat,lng); if(d<minDist){minDist=d;minIdx=i;} });
-    return { dist: minDist, idx: minIdx };
+// Returns {dist (metres), idx} using the actual drawn Leaflet polyline
+function distanceToRouteLayer(cam, routeLayer, map) {
+    const camPx = map.latLngToLayerPoint([cam.latitude, cam.longitude]);
+    const points = routeLayer.getLatLngs().map(ll => map.latLngToLayerPoint(ll));
+    let minDist = Infinity, closestPx = null, minIdx = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+        const pt = L.LineUtil.closestPointOnSegment(camPx, points[i], points[i + 1]);
+        const d = Math.hypot(camPx.x - pt.x, camPx.y - pt.y);
+        if (d < minDist) { minDist = d; closestPx = pt; minIdx = i; }
+    }
+    if (!closestPx) return { dist: Infinity, idx: 0 };
+    const closestLatLng = map.layerPointToLatLng(closestPx);
+    return {
+        dist: haversineDist(cam.latitude, cam.longitude, closestLatLng.lat, closestLatLng.lng),
+        idx: minIdx,
+    };
 }
 
 const statusBar = document.getElementById('status-bar');
@@ -406,12 +418,20 @@ document.getElementById('preview-btn').addEventListener('click', async () => {
         setStatus('Finding cameras along your route...');
         const { cameras } = await fetch('/api/cameras?feed=traffic').then(r => r.json());
 
-        const routeCameras = cameras
+        const withDist = cameras
             .filter(c => c.latitude && c.longitude)
-            .map(c => { const {dist,idx} = distanceToPath(c.latitude,c.longitude,path); return {...c,_dist:dist,_idx:idx}; })
-            .filter(c => c._dist <= 8000)
-            .sort((a,b) => a._idx - b._idx)
+            .map(c => {
+                const { dist, idx } = distanceToRouteLayer(c, routeLayer, map);
+                return { ...c, _dist: dist, _idx: idx };
+            });
+
+        const routeCameras = withDist
+            .filter(c => c._dist <= 500) // 500m from the drawn route line
+            .sort((a, b) => a._idx - b._idx)
             .slice(0, 15);
+
+        console.log(`[Scavenger] ${cameras.length} cameras → ${routeCameras.length} on route (≤500m)`);
+        routeCameras.forEach(c => console.log(`  ${Math.round(c._dist)}m  ${c.name}`));
 
         routeCameras.forEach(c => {
             const m = L.circleMarker([c.latitude,c.longitude], { radius:5, color:'#52525b', fillColor:'#52525b', fillOpacity:0.8, weight:1 }).addTo(map);

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Data Feed Playground — Vercel Labs</title>
+    <title>What's Up Bay Area</title>
     <meta name="description" content="Interactive AI playground analyzing live data feeds using Google Gemini.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,7 +18,7 @@
     <header id="main-header">
         <div class="logo-container">
             <div class="logo-badge"></div>
-            <h1>AI Feed Playground <span class="labs-tag">LABS</span></h1>
+            <h1>What's Up Bay Area <span class="labs-tag">LIVE</span></h1>
         </div>
         
         <!-- Feed Type Selector -->
@@ -30,7 +30,10 @@
             </select>
         </div>
 
-        <a href="/scavenger.html" style="font-size:0.78rem;font-family:'Geist Mono',monospace;color:var(--accent-violet);text-decoration:none;border:1px solid rgba(139,92,246,0.3);padding:0.3rem 0.75rem;border-radius:6px;transition:background 0.2s;" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='transparent'">✨ What's Ahead</a>
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+            <a href="/scavenger.html" style="font-size:0.78rem;font-family:'Geist Mono',monospace;color:var(--accent-violet);text-decoration:none;border:1px solid rgba(139,92,246,0.3);padding:0.3rem 0.75rem;border-radius:6px;transition:background 0.2s;" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='transparent'">✨ What's Ahead</a>
+            <a href="/about.html" style="font-size:0.78rem;font-family:'Geist Mono',monospace;color:var(--text-muted);text-decoration:none;border:1px solid var(--border-color);padding:0.3rem 0.75rem;border-radius:6px;transition:background 0.2s,color 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)';this.style.color='var(--text-primary)'" onmouseout="this.style.background='transparent';this.style.color='var(--text-muted)'">About</a>
+        </div>
 
         <div class="stats-container">
             <div class="stat-item" id="stat-cameras">

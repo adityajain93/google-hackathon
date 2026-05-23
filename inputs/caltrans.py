@@ -9,8 +9,43 @@ from inputs.base import BaseFeed
 
 class CaltransFeed(BaseFeed):
     def __init__(self):
-        self.active_cameras = []
-        self.last_update_time = 0
+        self.mock_cams = [
+            {
+                'id': 'caltrans_mock_0',
+                'name': 'I-80 : Bay Bridge Toll Plaza',
+                'nearby': 'Oakland',
+                'img_url': 'https://images.unsplash.com/photo-1542362567-b07eac790acd?w=800&auto=format&fit=crop&q=80',
+                'county': 'Alameda',
+                'route': '80',
+                'direction': 'West',
+                'latitude': 37.8252,
+                'longitude': -122.3168
+            },
+            {
+                'id': 'caltrans_mock_1',
+                'name': 'US-101 : Golden Gate Bridge',
+                'nearby': 'San Francisco',
+                'img_url': 'https://images.unsplash.com/photo-1506012787146-f92b2d7d6d96?w=800&auto=format&fit=crop&q=80',
+                'county': 'San Francisco',
+                'route': '101',
+                'direction': 'North',
+                'latitude': 37.8199,
+                'longitude': -122.4783
+            },
+            {
+                'id': 'caltrans_mock_2',
+                'name': 'I-580 : Richmond-San Rafael Bridge',
+                'nearby': 'Richmond',
+                'img_url': 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&auto=format&fit=crop&q=80',
+                'county': 'Contra Costa',
+                'route': '580',
+                'direction': 'West',
+                'latitude': 37.9358,
+                'longitude': -122.4278
+            }
+        ]
+        self.active_cameras = self.mock_cams
+        self.last_update_time = time.time()
         self.lock = threading.Lock()
         
         # Bypass SSL verification
@@ -90,10 +125,23 @@ class CaltransFeed(BaseFeed):
                         if res:
                             verified_cams.append(res)
                 
-                with self.lock:
-                    self.active_cameras = verified_cams
-                    self.last_update_time = time.time()
-                print(f"[CaltransFeed] Update complete. Found {len(self.active_cameras)} verified cameras.")
+                if verified_cams:
+                    with self.lock:
+                        old_cams_map = {c['id']: c for c in self.active_cameras}
+                        for new_cam in verified_cams:
+                            old_cam = old_cams_map.get(new_cam['id'])
+                            if old_cam:
+                                if 'latest_count_summary' in old_cam:
+                                    new_cam['latest_count_summary'] = old_cam['latest_count_summary']
+                                if 'latest_count_details' in old_cam:
+                                    new_cam['latest_count_details'] = old_cam['latest_count_details']
+                                if 'last_analyzed_time' in old_cam:
+                                    new_cam['last_analyzed_time'] = old_cam['last_analyzed_time']
+                        self.active_cameras = verified_cams
+                        self.last_update_time = time.time()
+                    print(f"[CaltransFeed] Update complete. Found {len(self.active_cameras)} verified cameras.")
+                else:
+                    print(f"[CaltransFeed] Verification yielded 0 cameras. Retaining existing active cameras.")
             except Exception as e:
                 print(f"[CaltransFeed] Error updating cameras: {e}")
             

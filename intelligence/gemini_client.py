@@ -53,8 +53,8 @@ class GeminiClient:
                 ]
             }
             
-            # Use gemini-1.5-flash which is widely available and supports multimodal input
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+            # Use gemini-3.5-flash which is widely available and supports multimodal input
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={self.api_key}"
             
             req = urllib.request.Request(
                 url,

@@ -3,6 +3,7 @@ let currentFeed = 'traffic';
 let cameras = [];
 let filteredCameras = [];
 let selectedCameraId = null;
+let isLoadingStateActive = false;
 
 
 // DOM Elements
@@ -52,12 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Fetch Camera/Node List from Server API
 async function fetchCameras() {
-    showLoadingState();
+    if (!isLoadingStateActive) {
+        showLoadingState();
+        isLoadingStateActive = true;
+    }
     try {
         const response = await fetch(`/api/cameras?feed=${currentFeed}`);
         if (!response.ok) throw new Error('Network response was not ok');
         
         const data = await response.json();
+        
+        if (data.is_loading) {
+            setTimeout(fetchCameras, 1500);
+            return;
+        }
+        
+        isLoadingStateActive = false;
         cameras = data.cameras || [];
         filteredCameras = [...cameras];
         
@@ -66,6 +77,7 @@ async function fetchCameras() {
         renderApp();
     } catch (error) {
         console.error('Error fetching camera data:', error);
+        isLoadingStateActive = false;
         showErrorState();
     }
 }
@@ -89,9 +101,10 @@ function showLoadingState() {
         <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
     `;
     cameraGallery.innerHTML = `
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
+        <div class="empty-state" style="padding: 5rem 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; width: 100%; grid-column: 1 / -1;">
+            <div class="labs-spinner" style="width: 40px; height: 40px; border-width: 3px;"></div>
+            <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; letter-spacing: 0.05em;">FETCHING LIVE CCTV FEEDS...</span>
+        </div>
     `;
 }
 
@@ -196,6 +209,7 @@ function handleFeedSwitch() {
     // Clear search filter state
     searchInput.value = '';
     selectedCameraId = null;
+    isLoadingStateActive = false;
     
     // Fetch new cameras list
     fetchCameras();
@@ -265,6 +279,10 @@ function renderListView() {
         const countPill = cam.latest_count_summary 
             ? `<span class="list-count-badge ${accentClass}">${cam.latest_count_summary}</span>` 
             : '';
+
+        const aqiPill = cam.air_quality_summary
+            ? `<span class="list-aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</span>`
+            : '';
             
         item.innerHTML = `
             <div class="item-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%;">
@@ -272,6 +290,7 @@ function renderListView() {
                 <div class="item-badges" style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
                     ${safetyPill}
                     ${countPill}
+                    ${aqiPill}
                 </div>
             </div>
             <div class="item-meta" style="margin-top: 4px;">
@@ -321,6 +340,10 @@ function renderGalleryView() {
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
+
+        const aqiBadge = cam.air_quality_summary
+            ? `<div class="aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</div>`
+            : '';
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
@@ -328,6 +351,7 @@ function renderGalleryView() {
                 <div class="card-badges">
                     ${safetyBadge}
                     ${countBadge}
+                    ${aqiBadge}
                     <div class="card-badge">Live</div>
                 </div>
             </div>
@@ -511,6 +535,9 @@ async function updateCountsOnly() {
                 localCam.latest_count_details = updatedCam.latest_count_details;
                 localCam.safety_summary = updatedCam.safety_summary;
                 localCam.safety_details = updatedCam.safety_details;
+                localCam.air_quality_aqi = updatedCam.air_quality_aqi;
+                localCam.air_quality_summary = updatedCam.air_quality_summary;
+                localCam.air_quality_css_class = updatedCam.air_quality_css_class;
             }
             
             // Update card element badges directly
@@ -554,6 +581,25 @@ async function updateCountsOnly() {
                     } else if (countBadge) {
                         countBadge.remove();
                     }
+
+                    // Update/insert AQI badge
+                    let aqiBadge = badgeContainer.querySelector('.aqi-badge');
+                    if (updatedCam.air_quality_summary) {
+                        if (!aqiBadge) {
+                            aqiBadge = document.createElement('div');
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) {
+                                badgeContainer.insertBefore(aqiBadge, liveBadge);
+                            } else {
+                                badgeContainer.appendChild(aqiBadge);
+                            }
+                        }
+                        aqiBadge.className = `aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                        aqiBadge.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                        aqiBadge.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                    } else if (aqiBadge) {
+                        aqiBadge.remove();
+                    }
                 }
             }
             
@@ -594,6 +640,20 @@ async function updateCountsOnly() {
                             countPill.textContent = updatedCam.latest_count_summary;
                         } else if (countPill) {
                             countPill.remove();
+                        }
+
+                        // Update AQI pill
+                        let aqiPill = badgesWrapper.querySelector('.list-aqi-badge');
+                        if (updatedCam.air_quality_summary) {
+                            if (!aqiPill) {
+                                aqiPill = document.createElement('span');
+                                badgesWrapper.appendChild(aqiPill);
+                            }
+                            aqiPill.className = `list-aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                            aqiPill.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                            aqiPill.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                        } else if (aqiPill) {
+                            aqiPill.remove();
                         }
                     }
                 }

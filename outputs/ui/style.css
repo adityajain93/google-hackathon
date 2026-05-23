@@ -915,3 +915,41 @@ h1 {
     color: var(--accent-danger);
 }
 
+/* ── Air Quality Badge (card overlay) ─────────────────────────── */
+.aqi-badge {
+    background: rgba(10, 10, 15, 0.85);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    backdrop-filter: var(--glass-blur);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.aqi-badge.aqi-good          { border-color: rgba(16,185,129,0.5);  color: #10b981; }
+.aqi-badge.aqi-moderate      { border-color: rgba(234,179,8,0.5);   color: #eab308; }
+.aqi-badge.aqi-sensitive     { border-color: rgba(245,158,11,0.5);  color: #f59e0b; }
+.aqi-badge.aqi-unhealthy     { border-color: rgba(239,68,68,0.5);   color: #ef4444; }
+.aqi-badge.aqi-very-unhealthy{ border-color: rgba(168,85,247,0.5);  color: #a855f7; }
+.aqi-badge.aqi-hazardous     { border-color: rgba(185,28,28,0.5);   color: #b91c1c; }
+
+/* ── Air Quality Badge (sidebar list) ─────────────────────────── */
+.list-aqi-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+}
+
+.list-aqi-badge.aqi-good          { background: rgba(16,185,129,0.1);  border: 1px solid rgba(16,185,129,0.3);  color: #10b981; }
+.list-aqi-badge.aqi-moderate      { background: rgba(234,179,8,0.1);   border: 1px solid rgba(234,179,8,0.3);   color: #eab308; }
+.list-aqi-badge.aqi-sensitive     { background: rgba(245,158,11,0.1);  border: 1px solid rgba(245,158,11,0.3);  color: #f59e0b; }
+.list-aqi-badge.aqi-unhealthy     { background: rgba(239,68,68,0.1);   border: 1px solid rgba(239,68,68,0.3);   color: #ef4444; }
+.list-aqi-badge.aqi-very-unhealthy{ background: rgba(168,85,247,0.1);  border: 1px solid rgba(168,85,247,0.3); color: #a855f7; }
+.list-aqi-badge.aqi-hazardous     { background: rgba(185,28,28,0.1);   border: 1px solid rgba(185,28,28,0.3);   color: #b91c1c; }

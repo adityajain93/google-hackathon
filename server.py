@@ -14,8 +14,10 @@ from intelligence.analyzer import Analyzer
 from outputs.notifier import Notifier
 from agents.car_count_agent import CarCountAgent
 import cv2
+from agents.scavenger_agent import ScavengerAgent
 from inputs.youtube_grabber import YoutubeFrameGrabber
 from agents.safety_agent import SafetyAgent
+from agents.air_quality_agent import AirQualityAgent
 
 from agents.surveillance_agent import SurveillanceAgent
 from agents.alert_agent import AlertAgent
@@ -49,9 +51,13 @@ notifier = Notifier()
 # Instantiate and start background agents
 car_count_agent = CarCountAgent(caltrans_feed, zoo_feed, analyzer, notifier)
 safety_agent = SafetyAgent(caltrans_feed, analyzer, notifier)
+air_quality_agent = AirQualityAgent(caltrans_feed)
+
+scavenger_agent = ScavengerAgent(caltrans_feed, analyzer.gemini_client)
 
 car_count_agent.start()
 safety_agent.start()
+air_quality_agent.start()
 
 # Instantiate and start autonomous surveillance + alerting agents
 surveillance_agent = SurveillanceAgent(caltrans_feed, zoo_feed, analyzer, notifier)
@@ -113,13 +119,16 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
             if feed_type == 'zoo':
                 cams = zoo_feed.get_devices()
                 last_updated = time.time()
+                is_loading = False
             else:
                 cams = caltrans_feed.get_devices()
                 last_updated = caltrans_feed.last_update_time
+                is_loading = not caltrans_feed.first_update_done
                 
             response_data = {
                 'last_updated': last_updated,
-                'cameras': cams
+                'cameras': cams,
+                'is_loading': is_loading
             }
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
@@ -218,6 +227,31 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
             
         # Fall back to standard static file serving
         return super().do_GET()
+
+    def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+
+        if path == '/api/scavenger/route':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = json.loads(self.rfile.read(length))
+                cameras = body.get('cameras', [])
+                findings = scavenger_agent.scan_route_cameras(cameras)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'findings': findings}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+            return
+
+        self.send_error(404)
 
 def start_server():
     print("[Server] Starting server.py...")

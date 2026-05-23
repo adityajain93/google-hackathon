@@ -15,6 +15,8 @@ from outputs.notifier import Notifier
 from agents.traffic_agent import TrafficAgent
 from agents.zoo_agent import ZooAgent
 from agents.car_count_agent import CarCountAgent
+import cv2
+from inputs.youtube_grabber import YoutubeFrameGrabber
 
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -120,16 +122,29 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
                 
             try:
-                req = urllib.request.Request(
-                    image_url, 
-                    headers={'User-Agent': 'Mozilla/5.0'}
-                )
-                with urllib.request.urlopen(req, context=ssl_context, timeout=8) as response:
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'image/jpeg')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(response.read())
+                if "youtube.com" in image_url or "youtu.be" in image_url:
+                    frame = YoutubeFrameGrabber.grab_frame(image_url)
+                    if frame is not None:
+                        success, encoded_image = cv2.imencode('.jpg', frame)
+                        if success:
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'image/jpeg')
+                            self.send_header('Access-Control-Allow-Origin', '*')
+                            self.end_headers()
+                            self.wfile.write(encoded_image.tobytes())
+                            return
+                    self.send_error(500, "Failed to capture frame from YouTube stream")
+                else:
+                    req = urllib.request.Request(
+                        image_url, 
+                        headers={'User-Agent': 'Mozilla/5.0'}
+                    )
+                    with urllib.request.urlopen(req, context=ssl_context, timeout=8) as response:
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'image/jpeg')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(response.read())
             except Exception as e:
                 self.send_error(500, f"Error proxying image: {e}")
             return
@@ -177,6 +192,7 @@ def start_server():
     handler = CameraProxyHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", PORT), handler) as httpd:
+    with http.server.ThreadingHTTPServer(("", PORT), handler) as httpd:
         print(f"[Server] Running at http://localhost:{PORT}")
         try:
             httpd.serve_forever()

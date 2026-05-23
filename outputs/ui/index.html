@@ -80,10 +80,6 @@
         <!-- Right Side Content -->
         <div class="content-area" id="main-content">
             
-            <!-- Map Section -->
-            <section class="map-section" aria-label="Interactive Node Map">
-                <div id="map"></div>
-            </section>
 
             <!-- Card Gallery -->
             <section class="gallery-section" aria-label="Node Feeds Grid">
@@ -104,10 +100,13 @@
             <button class="modal-close" id="modal-close-btn" aria-label="Close modal">&times;</button>
             
             <div class="modal-split-container">
-                <!-- Left Column: Image -->
+                <!-- Left Column: Image / Live Stream -->
                 <div class="modal-left-panel">
                     <div class="modal-img-container">
                         <img src="" alt="" class="modal-img" id="modal-image">
+                        <iframe id="modal-youtube-frame" class="modal-youtube-frame"
+                            src="" frameborder="0" allow="autoplay; encrypted-media"
+                            allowfullscreen style="display:none;"></iframe>
                     </div>
                 </div>
                 
@@ -185,8 +184,7 @@
         </div>
     </div>
 
-    <!-- Google Maps JS API -->
-    <script src="https://maps.googleapis.com/maps/api/js?key={{GOOGLE_MAPS_API_KEY}}"></script>
+
     <!-- Custom Application Logic -->
     <script src="app.js"></script>
 </body>

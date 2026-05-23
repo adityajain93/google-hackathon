@@ -16,15 +16,26 @@ class GeminiClient:
     def fetch_image_base64(self, img_url):
         """Downloads an image from URL and encodes it to base64."""
         try:
-            req = urllib.request.Request(
-                img_url, 
-                headers={'User-Agent': 'Mozilla/5.0'}
-            )
-            with urllib.request.urlopen(req, context=self.ssl_context, timeout=10) as response:
-                img_data = response.read()
-                return base64.b64encode(img_data).decode('utf-8')
+            if "youtube.com" in img_url or "youtu.be" in img_url:
+                from inputs.youtube_grabber import YoutubeFrameGrabber
+                import cv2
+                print(f"[GeminiClient] Intercepted YouTube URL: {img_url}. Grabbing frame...")
+                frame = YoutubeFrameGrabber.grab_frame(img_url)
+                if frame is not None:
+                    success, encoded_image = cv2.imencode('.jpg', frame)
+                    if success:
+                        return base64.b64encode(encoded_image.tobytes()).decode('utf-8')
+                raise ValueError("Failed to capture frame from YouTube stream")
+            else:
+                req = urllib.request.Request(
+                    img_url, 
+                    headers={'User-Agent': 'Mozilla/5.0'}
+                )
+                with urllib.request.urlopen(req, context=self.ssl_context, timeout=10) as response:
+                    img_data = response.read()
+                    return base64.b64encode(img_data).decode('utf-8')
         except Exception as e:
-            print(f"[GeminiClient] Error downloading image {img_url}: {e}")
+            print(f"[GeminiClient] Error downloading/capturing image {img_url}: {e}")
             raise
 
     def analyze_image(self, img_url, prompt):

@@ -3,91 +3,7 @@ let currentFeed = 'traffic';
 let cameras = [];
 let filteredCameras = [];
 let selectedCameraId = null;
-let map = null;
-let markers = [];
-let infoWindow = null;
 
-// Premium dark stylesheet for Google Maps
-const darkMapStyle = [
-    { elementType: "geometry", stylers: [{ color: "#07070a" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#0a0a0f" }, { weight: 2 }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#71717a" }] },
-    {
-        featureType: "administrative.locality",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#a1a1aa" }]
-    },
-    {
-        featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "poi.park",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3f3f46" }]
-    },
-    {
-        featureType: "road",
-        elementType: "geometry",
-        stylers: [{ color: "#18181b" }]
-    },
-    {
-        featureType: "road",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "geometry",
-        stylers: [{ color: "#18181b" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#040406" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#e4e4e7" }]
-    },
-    {
-        featureType: "transit",
-        elementType: "geometry",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "transit.station",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#050508" }]
-    },
-    {
-        featureType: "water",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3f3f46" }]
-    },
-    {
-        featureType: "water",
-        elementType: "labels.text.stroke",
-        stylers: [{ color: "#0a0a0f" }]
-    }
-];
 
 // DOM Elements
 const activeCountEl = document.getElementById('active-count');
@@ -128,29 +44,11 @@ const resultBody = document.getElementById('analysis-result-content');
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
-    initMap();
     fetchCameras();
     setupEventListeners();
 });
 
-// Initialize Google Map
-function initMap() {
-    const bayAreaCenter = { lat: 37.7749, lng: -122.4194 };
-    
-    map = new google.maps.Map(document.getElementById('map'), {
-        center: bayAreaCenter,
-        zoom: 9.5,
-        styles: darkMapStyle,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoomControlOptions: {
-            position: google.maps.ControlPosition.RIGHT_BOTTOM
-        }
-    });
 
-    infoWindow = new google.maps.InfoWindow();
-}
 
 // Fetch Camera/Node List from Server API
 async function fetchCameras() {
@@ -288,21 +186,11 @@ function handleFeedSwitch() {
         countyFilterLabel.textContent = 'Filter by Sector';
         modalLblRoute.textContent = 'Zone:';
         modalLblCounty.textContent = 'Sector:';
-        
-        // Relocate map to San Diego Zoo
-        const zooCenter = { lat: 32.7350, lng: -117.1500 };
-        map.setCenter(zooCenter);
-        map.setZoom(16);
     } else {
         routeFilterLabel.textContent = 'Filter by Route';
         countyFilterLabel.textContent = 'Filter by County';
         modalLblRoute.textContent = 'Route:';
         modalLblCounty.textContent = 'County:';
-        
-        // Relocate map to Bay Area
-        const bayAreaCenter = { lat: 37.7749, lng: -122.4194 };
-        map.setCenter(bayAreaCenter);
-        map.setZoom(9.5);
     }
     
     // Clear search filter state
@@ -340,65 +228,11 @@ function filterCameras() {
 
 // Render Entire UI State
 function renderApp() {
-    renderMapMarkers();
     renderListView();
     renderGalleryView();
 }
 
-// Render Pins on Google Map
-function renderMapMarkers() {
-    // Clear old markers
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-    
-    filteredCameras.forEach((cam, index) => {
-        if (cam.latitude && cam.longitude) {
-            const latLng = { lat: cam.latitude, lng: cam.longitude };
-            const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
-            const isSelected = selectedCameraId === index;
-            
-            // Neon Violet for Zoo, Neon Cyan for Traffic
-            const activeColor = currentFeed === 'zoo' ? '#8b5cf6' : '#06b6d4';
-            
-            const marker = new google.maps.Marker({
-                position: latLng,
-                map: map,
-                title: cam.name,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: isSelected ? '#ffffff' : activeColor,
-                    fillOpacity: 0.9,
-                    strokeColor: isSelected ? activeColor : '#ffffff',
-                    strokeWeight: 1.5,
-                    scale: isSelected ? 8 : 6
-                }
-            });
-            
-            const popupContent = `
-                <div style="font-family: var(--font-sans); width: 220px; display: flex; flex-direction: column; gap: 4px; padding: 2px;">
-                    <strong style="color: #ffffff; font-size: 0.85rem; line-height: 1.2;">${cam.name}</strong>
-                    <span style="color: #a1a1aa; font-size: 0.75rem;">Nearby: ${cam.nearby}</span>
-                    <img src="${proxiedImg}" alt="${cam.name}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-top: 4px; border: 1px solid rgba(255,255,255,0.05);" />
-                    <button onclick="window.selectCameraFromMap(${index})" style="background: ${activeColor}; border: none; padding: 6px 8px; border-radius: 4px; font-size: 0.75rem; color: #000; font-weight: 600; cursor: pointer; margin-top: 6px; text-align: center; width: 100%;">Analyze Feed</button>
-                </div>
-            `;
-            
-            marker.addListener('click', () => {
-                infoWindow.setContent(popupContent);
-                infoWindow.open(map, marker);
-                selectCamera(index, false);
-            });
-            
-            markers.push(marker);
-        }
-    });
 
-    // Make marker button click callback global
-    window.selectCameraFromMap = (idx) => {
-        selectCamera(idx, false);
-        openModal(idx);
-    };
-}
 
 // Render Left Sidebar list
 function renderListView() {
@@ -461,6 +295,8 @@ function renderGalleryView() {
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
+        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
@@ -491,15 +327,6 @@ function selectCamera(idx, panToMarker = true) {
     
     const cam = filteredCameras[idx];
     if (cam) {
-        const marker = markers[idx];
-        if (marker) {
-            if (panToMarker) {
-                map.panTo(marker.getPosition());
-                map.setZoom(currentFeed === 'zoo' ? 17 : 12);
-            }
-            google.maps.event.trigger(marker, 'click');
-        }
-        
         const card = document.getElementById(`cam-card-${idx}`);
         if (card) {
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -538,6 +365,7 @@ function openModal(idx) {
         modalImage.src = proxiedImg;
         modalImage.alt = cam.name;
     }
+    
     modalTitle.textContent = cam.name;
     modalRoute.textContent = cam.route || 'N/A';
     modalDirection.textContent = cam.direction || 'N/A';
@@ -552,6 +380,13 @@ function openModal(idx) {
 function closeModal() {
     cameraModal.classList.remove('show');
     document.body.style.overflow = 'auto';
+    
+    // Remove YouTube iframe if exists
+    const imgContainer = document.querySelector('.modal-img-container');
+    const iframe = imgContainer.querySelector('iframe');
+    if (iframe) iframe.remove();
+    
+    modalImage.style.display = 'block';
     modalImage.src = '';
     modalYoutubeFrame.src = '';
     modalYoutubeFrame.style.display = 'none';
@@ -580,7 +415,8 @@ async function runAIAnalysis() {
     runAnalysisBtn.style.opacity = '0.6';
 
     try {
-        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(cam.img_url)}&prompt=${objective}`;
+        const analyzeUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(analyzeUrl)}&prompt=${objective}`;
         if (objective === 'custom') {
             url += `&custom_prompt=${encodeURIComponent(customPrompt)}`;
         }

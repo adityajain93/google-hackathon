@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — What's Up Bay Area</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { display: block; }
+
+        .page-header {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.85rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .back-link {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--text-primary); }
+
+        .about-body {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem 5rem;
+        }
+
+        .about-eyebrow {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent-violet);
+            margin-bottom: 0.75rem;
+        }
+
+        .about-headline {
+            font-family: var(--font-heading);
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 800;
+            line-height: 1.15;
+            color: var(--text-primary);
+            margin-bottom: 1.25rem;
+        }
+
+        .about-lead {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            line-height: 1.75;
+            margin-bottom: 2.5rem;
+            border-left: 3px solid var(--accent-violet);
+            padding-left: 1.25rem;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 3rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.25rem 1.25rem 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .feature-card:hover { border-color: var(--border-hover); }
+
+        .feature-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+
+        .feature-title {
+            font-family: var(--font-heading);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.4rem;
+        }
+
+        .feature-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tech-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .tech-tag {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.3rem 0.7rem;
+        }
+
+        .cta-row {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            padding: 0.7rem 1.4rem;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-decoration: none;
+            font-family: var(--font-sans);
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .cta-primary { background: #ffffff; color: #000000; }
+        .cta-primary:hover { background: #e4e4e7; }
+        .cta-secondary { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); }
+        .cta-secondary:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+    </style>
+</head>
+<body>
+
+<header class="page-header">
+    <div class="logo-container">
+        <div class="logo-badge"></div>
+        <h1>What's Up Bay Area <span class="labs-tag">LIVE</span></h1>
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+        <a href="/" class="back-link">← Live Feeds</a>
+        <a href="/scavenger.html" style="font-size:0.78rem;font-family:var(--font-mono);color:var(--accent-violet);text-decoration:none;border:1px solid rgba(139,92,246,0.3);padding:0.3rem 0.75rem;border-radius:6px;transition:background 0.2s;" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='transparent'">✨ What's Ahead</a>
+    </div>
+</header>
+
+<div class="about-body">
+
+    <div class="about-eyebrow">About the project</div>
+    <h2 class="about-headline">Every camera.<br>Every road.<br>One conversation.</h2>
+
+    <p class="about-lead">
+        The Bay Area has hundreds of live traffic cameras, zoo livestreams, and real-time road data — but it's all raw, scattered, and unreadable. What's Up Bay Area connects to those public feeds and lets Google Gemini tell you what's actually happening, right now, in plain English.
+    </p>
+
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="feature-icon">🚦</div>
+            <div class="feature-title">Live Traffic Feeds</div>
+            <div class="feature-desc">Browse 150+ real Caltrans highway cameras across the Bay Area. Ask Gemini anything about what it sees — traffic density, hazards, weather visibility.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🐼</div>
+            <div class="feature-title">Zoo Animal Cams</div>
+            <div class="feature-desc">Watch live zoo feeds from California and let Gemini narrate the action — whether the pandas are napping or the penguins are putting on a show.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">✨</div>
+            <div class="feature-title">What's Ahead</div>
+            <div class="feature-desc">Enter your route and Gemini scans every camera along your actual road path — surfacing construction, fog, stalled vehicles, or anything worth knowing before you drive.</div>
+        </div>
+    </div>
+
+    <div class="section-title">Built with</div>
+    <div class="tech-list">
+        <span class="tech-tag">Google Gemini Vision</span>
+        <span class="tech-tag">Caltrans District 4 CCTV Feed</span>
+        <span class="tech-tag">Leaflet.js</span>
+        <span class="tech-tag">OpenStreetMap / Nominatim</span>
+        <span class="tech-tag">OSRM Routing</span>
+        <span class="tech-tag">Python HTTP Server</span>
+        <span class="tech-tag">CartoDB Dark Tiles</span>
+        <span class="tech-tag">Google Maps API</span>
+    </div>
+
+    <div class="section-title">Explore</div>
+    <div class="cta-row">
+        <a href="/" class="cta-btn cta-primary">View Live Feeds</a>
+        <a href="/scavenger.html" class="cta-btn cta-secondary">✨ What's Ahead</a>
+    </div>
+
+</div>
+
+</body>
+</html>

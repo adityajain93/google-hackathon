@@ -1,73 +1,69 @@
-import time
 from inputs.base import BaseFeed
 
 class ZooFeed(BaseFeed):
     def __init__(self):
-        # We will use high-quality animal images to represent "live streams"
         self.cams = [
             {
-                'id': 'zoo_panda',
-                'name': 'Panda Sanctuary Cam 1',
-                'nearby': 'Bamboo Grove',
+                'id': 'zoo_otter_seattle',
+                'name': 'Seattle Aquarium — Sea Otter & Fur Seal Cam',
+                'nearby': 'Marine Mammal Habitat',
                 'img_url': 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=800&auto=format&fit=crop&q=80',
-                'county': 'Zoo North',
+                'youtube_id': 'NqOmHpwMUxs',
+                'county': 'Seattle WA',
                 'route': 'Zone A',
-                'direction': 'East View',
-                'latitude': 32.7355,
-                'longitude': -117.1500
+                'direction': 'Pool View',
+                'latitude': 47.6063,
+                'longitude': -122.3425,
+                'is_youtube': True
             },
             {
-                'id': 'zoo_tiger',
-                'name': 'Tiger Canyon Cam',
-                'nearby': 'Waterfalls Overlook',
-                'img_url': 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=800&auto=format&fit=crop&q=80',
-                'county': 'Zoo East',
-                'route': 'Zone B',
-                'direction': 'South View',
-                'latitude': 32.7360,
-                'longitude': -117.1480
-            },
-            {
-                'id': 'zoo_elephant',
-                'name': 'Elephant Savanna Cam 2',
-                'nearby': 'Waterhole',
-                'img_url': 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=800&auto=format&fit=crop&q=80',
-                'county': 'Zoo South',
-                'route': 'Zone C',
-                'direction': 'North View',
-                'latitude': 32.7340,
-                'longitude': -117.1495
-            },
-            {
-                'id': 'zoo_penguin',
-                'name': 'Penguin Coast Active Cam',
-                'nearby': 'Ice Pool',
+                'id': 'zoo_penguin_pittsburgh',
+                'name': 'Pittsburgh Zoo — Penguin Cam',
+                'nearby': 'PPG Aquarium Penguin Pool',
                 'img_url': 'https://images.unsplash.com/photo-1517783999520-f068d7431a60?w=800&auto=format&fit=crop&q=80',
-                'county': 'Zoo South',
-                'route': 'Zone D',
-                'direction': 'Underwater View',
-                'latitude': 32.7345,
-                'longitude': -117.1510
+                'youtube_id': 'cTi5sCsUSfc',
+                'county': 'Pittsburgh PA',
+                'route': 'Zone B',
+                'direction': 'Pool View',
+                'latitude': 40.4519,
+                'longitude': -79.9220,
+                'is_youtube': True
             },
             {
-                'id': 'zoo_koala',
-                'name': 'Koala Outback Cam',
-                'nearby': 'Eucalyptus Forest',
-                'img_url': 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=800&auto=format&fit=crop&q=80',
-                'county': 'Zoo West',
-                'route': 'Zone A',
-                'direction': 'Canopy View',
-                'latitude': 32.7350,
-                'longitude': -117.1520
-            }
+                'id': 'zoo_tiger_turpentine',
+                'name': 'Turpentine Creek — Tiger Cam',
+                'nearby': 'Big Cat Refuge',
+                'img_url': 'https://images.unsplash.com/photo-1540573133985-87b6da6d54a9?w=800&auto=format&fit=crop&q=80',
+                'youtube_id': 'PcAOecvAh1U',
+                'county': 'Eureka Springs AR',
+                'route': 'Zone C',
+                'direction': 'Habitat View',
+                'latitude': 36.4012,
+                'longitude': -93.7185,
+                'is_youtube': True
+            },
+            {
+                'id': 'zoo_giraffe_greenville',
+                'name': 'EarthCam — Giraffe Paddock Cam',
+                'nearby': 'Giraffe Paddock, Greenville SC',
+                'img_url': 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=800&auto=format&fit=crop&q=80',
+                'youtube_id': '1NoSs03ZrlY',
+                'county': 'Greenville SC',
+                'route': 'Zone D',
+                'direction': 'Paddock View',
+                'latitude': 34.8526,
+                'longitude': -82.3940,
+                'is_youtube': True
+            },
         ]
 
     def get_devices(self):
-        # Zoo feeds are static mock devices but represent active cameras
         return self.cams
 
     def get_latest_frame(self, device_id):
         for cam in self.cams:
             if cam['id'] == device_id:
+                if cam.get('youtube_id'):
+                    return f"https://www.youtube.com/watch?v={cam['youtube_id']}"
                 return cam['img_url']
         return None

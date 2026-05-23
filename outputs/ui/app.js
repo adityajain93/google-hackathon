@@ -3,91 +3,8 @@ let currentFeed = 'traffic';
 let cameras = [];
 let filteredCameras = [];
 let selectedCameraId = null;
-let map = null;
-let markers = [];
-let infoWindow = null;
+let isLoadingStateActive = false;
 
-// Premium dark stylesheet for Google Maps
-const darkMapStyle = [
-    { elementType: "geometry", stylers: [{ color: "#07070a" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#0a0a0f" }, { weight: 2 }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#71717a" }] },
-    {
-        featureType: "administrative.locality",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#a1a1aa" }]
-    },
-    {
-        featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "poi.park",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3f3f46" }]
-    },
-    {
-        featureType: "road",
-        elementType: "geometry",
-        stylers: [{ color: "#18181b" }]
-    },
-    {
-        featureType: "road",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "geometry",
-        stylers: [{ color: "#18181b" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#040406" }]
-    },
-    {
-        featureType: "road.highway",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#e4e4e7" }]
-    },
-    {
-        featureType: "transit",
-        elementType: "geometry",
-        stylers: [{ color: "#0a0a0f" }]
-    },
-    {
-        featureType: "transit.station",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#52525b" }]
-    },
-    {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#050508" }]
-    },
-    {
-        featureType: "water",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3f3f46" }]
-    },
-    {
-        featureType: "water",
-        elementType: "labels.text.stroke",
-        stylers: [{ color: "#0a0a0f" }]
-    }
-];
 
 // DOM Elements
 const activeCountEl = document.getElementById('active-count');
@@ -128,38 +45,30 @@ const resultBody = document.getElementById('analysis-result-content');
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
-    initMap();
     fetchCameras();
     setupEventListeners();
 });
 
-// Initialize Google Map
-function initMap() {
-    const bayAreaCenter = { lat: 37.7749, lng: -122.4194 };
-    
-    map = new google.maps.Map(document.getElementById('map'), {
-        center: bayAreaCenter,
-        zoom: 9.5,
-        styles: darkMapStyle,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoomControlOptions: {
-            position: google.maps.ControlPosition.RIGHT_BOTTOM
-        }
-    });
 
-    infoWindow = new google.maps.InfoWindow();
-}
 
 // Fetch Camera/Node List from Server API
 async function fetchCameras() {
-    showLoadingState();
+    if (!isLoadingStateActive) {
+        showLoadingState();
+        isLoadingStateActive = true;
+    }
     try {
         const response = await fetch(`/api/cameras?feed=${currentFeed}`);
         if (!response.ok) throw new Error('Network response was not ok');
         
         const data = await response.json();
+        
+        if (data.is_loading) {
+            setTimeout(fetchCameras, 1500);
+            return;
+        }
+        
+        isLoadingStateActive = false;
         cameras = data.cameras || [];
         filteredCameras = [...cameras];
         
@@ -168,6 +77,7 @@ async function fetchCameras() {
         renderApp();
     } catch (error) {
         console.error('Error fetching camera data:', error);
+        isLoadingStateActive = false;
         showErrorState();
     }
 }
@@ -191,9 +101,10 @@ function showLoadingState() {
         <div class="camera-list-item shimmer" style="height: 55px; margin-bottom: 0.5rem;"></div>
     `;
     cameraGallery.innerHTML = `
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
-        <div class="camera-card shimmer" style="height: 250px;"></div>
+        <div class="empty-state" style="padding: 5rem 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; width: 100%; grid-column: 1 / -1;">
+            <div class="labs-spinner" style="width: 40px; height: 40px; border-width: 3px;"></div>
+            <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; letter-spacing: 0.05em;">FETCHING LIVE CCTV FEEDS...</span>
+        </div>
     `;
 }
 
@@ -276,6 +187,11 @@ function setupEventListeners() {
     setInterval(() => {
         updateCountsOnly();
     }, 15000);
+
+    // Auto-refresh card images + re-analyze car counts every 30 seconds
+    setInterval(() => {
+        startLiveImageSync();
+    }, 30000);
 }
 
 // Handle Feed Switching
@@ -288,26 +204,17 @@ function handleFeedSwitch() {
         countyFilterLabel.textContent = 'Filter by Sector';
         modalLblRoute.textContent = 'Zone:';
         modalLblCounty.textContent = 'Sector:';
-        
-        // Relocate map to San Diego Zoo
-        const zooCenter = { lat: 32.7350, lng: -117.1500 };
-        map.setCenter(zooCenter);
-        map.setZoom(16);
     } else {
         routeFilterLabel.textContent = 'Filter by Route';
         countyFilterLabel.textContent = 'Filter by County';
         modalLblRoute.textContent = 'Route:';
         modalLblCounty.textContent = 'County:';
-        
-        // Relocate map to Bay Area
-        const bayAreaCenter = { lat: 37.7749, lng: -122.4194 };
-        map.setCenter(bayAreaCenter);
-        map.setZoom(9.5);
     }
     
     // Clear search filter state
     searchInput.value = '';
     selectedCameraId = null;
+    isLoadingStateActive = false;
     
     // Fetch new cameras list
     fetchCameras();
@@ -340,65 +247,51 @@ function filterCameras() {
 
 // Render Entire UI State
 function renderApp() {
-    renderMapMarkers();
+    updateSidebarAlerts();
     renderListView();
     renderGalleryView();
 }
 
-// Render Pins on Google Map
-function renderMapMarkers() {
-    // Clear old markers
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-    
-    filteredCameras.forEach((cam, index) => {
-        if (cam.latitude && cam.longitude) {
-            const latLng = { lat: cam.latitude, lng: cam.longitude };
-            const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
-            const isSelected = selectedCameraId === index;
-            
-            // Neon Violet for Zoo, Neon Cyan for Traffic
-            const activeColor = currentFeed === 'zoo' ? '#8b5cf6' : '#06b6d4';
-            
-            const marker = new google.maps.Marker({
-                position: latLng,
-                map: map,
-                title: cam.name,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: isSelected ? '#ffffff' : activeColor,
-                    fillOpacity: 0.9,
-                    strokeColor: isSelected ? activeColor : '#ffffff',
-                    strokeWeight: 1.5,
-                    scale: isSelected ? 8 : 6
-                }
-            });
-            
-            const popupContent = `
-                <div style="font-family: var(--font-sans); width: 220px; display: flex; flex-direction: column; gap: 4px; padding: 2px;">
-                    <strong style="color: #ffffff; font-size: 0.85rem; line-height: 1.2;">${cam.name}</strong>
-                    <span style="color: #a1a1aa; font-size: 0.75rem;">Nearby: ${cam.nearby}</span>
-                    <img src="${proxiedImg}" alt="${cam.name}" style="width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-top: 4px; border: 1px solid rgba(255,255,255,0.05);" />
-                    <button onclick="window.selectCameraFromMap(${index})" style="background: ${activeColor}; border: none; padding: 6px 8px; border-radius: 4px; font-size: 0.75rem; color: #000; font-weight: 600; cursor: pointer; margin-top: 6px; text-align: center; width: 100%;">Analyze Feed</button>
-                </div>
-            `;
-            
-            marker.addListener('click', () => {
-                infoWindow.setContent(popupContent);
-                infoWindow.open(map, marker);
-                selectCamera(index, false);
-            });
-            
-            markers.push(marker);
-        }
-    });
+// Update the sidebar alert container based on hazardous events in filtered nodes
+function updateSidebarAlerts() {
+    const alertContainer = document.getElementById('sidebar-alert-container');
+    if (!alertContainer) return;
 
-    // Make marker button click callback global
-    window.selectCameraFromMap = (idx) => {
-        selectCamera(idx, false);
-        openModal(idx);
-    };
+    if (currentFeed !== 'traffic') {
+        alertContainer.style.display = 'none';
+        return;
+    }
+
+    const hazards = filteredCameras.filter(cam => 
+        cam.safety_summary === 'Accident' || 
+        cam.safety_summary === 'Collision' || 
+        cam.safety_summary === 'Hazard'
+    );
+
+    if (hazards.length > 0) {
+        alertContainer.style.display = 'block';
+        alertContainer.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+        alertContainer.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        alertContainer.style.color = '#ef4444';
+        
+        let routes = [...new Set(hazards.map(c => c.route))].filter(Boolean);
+        let locations = hazards.map(c => c.name);
+        
+        alertContainer.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="font-size: 1.1em;">⚠️</span>
+                <strong>Hazard Alert</strong>
+            </div>
+            <div style="opacity: 0.9;">
+                Active incidents detected on: ${routes.join(', ') || 'this route'}.
+            </div>
+        `;
+    } else {
+        alertContainer.style.display = 'none';
+    }
 }
+
+
 
 // Render Left Sidebar list
 function renderListView() {
@@ -417,14 +310,33 @@ function renderListView() {
         const countyLabel = currentFeed === 'traffic' ? cam.county : cam.county;
         
         const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        let safetyPill = '';
+        if (cam.safety_summary) {
+            let safetyClass = 'safety-safe';
+            if (cam.safety_summary === 'Accident' || cam.safety_summary === 'Collision') {
+                safetyClass = 'safety-danger';
+            } else if (cam.safety_summary === 'Hazard') {
+                safetyClass = 'safety-warning';
+            }
+            safetyPill = `<span class="list-safety-badge ${safetyClass}">${cam.safety_summary}</span>`;
+        }
+
         const countPill = cam.latest_count_summary 
             ? `<span class="list-count-badge ${accentClass}">${cam.latest_count_summary}</span>` 
+            : '';
+
+        const aqiPill = cam.air_quality_summary
+            ? `<span class="list-aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</span>`
             : '';
             
         item.innerHTML = `
             <div class="item-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%;">
                 <div class="item-name">${cam.name}</div>
-                ${countPill}
+                <div class="item-badges" style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+                    ${safetyPill}
+                    ${countPill}
+                    ${aqiPill}
+                </div>
             </div>
             <div class="item-meta" style="margin-top: 4px;">
                 <span>${routeLabel}: ${cam.route}</span>
@@ -456,17 +368,37 @@ function renderGalleryView() {
             card.style.boxShadow = 'var(--shadow-glow)';
         }
         
-        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cam.img_url)}`;
+        const cardImgUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        const proxiedImg = `/api/proxy?url=${encodeURIComponent(cardImgUrl)}`;
         const accentClass = currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent';
+        let safetyBadge = '';
+        if (cam.safety_summary) {
+            let safetyClass = 'safety-safe';
+            if (cam.safety_summary === 'Accident' || cam.safety_summary === 'Collision') {
+                safetyClass = 'safety-danger';
+            } else if (cam.safety_summary === 'Hazard') {
+                safetyClass = 'safety-warning';
+            }
+            safetyBadge = `<div class="safety-badge ${safetyClass}">${cam.safety_summary}</div>`;
+        }
+
         const countBadge = cam.latest_count_summary 
             ? `<div class="count-badge ${accentClass}">${cam.latest_count_summary}</div>` 
             : '';
+
+        const aqiBadge = cam.air_quality_summary
+            ? `<div class="aqi-badge ${cam.air_quality_css_class || ''}" title="AQI: ${cam.air_quality_aqi}">AQI ${cam.air_quality_aqi}</div>`
+            : '';
         
+        const funDesc = currentFeed === 'zoo' && cam.fun_description ? cam.fun_description : '';
+
         card.innerHTML = `
             <div class="card-img-wrapper" onclick="openModal(${idx})">
                 <img src="${proxiedImg}" alt="Live feed for ${cam.name}" class="card-img" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%230d0d15%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2352525b%22>FEED OFFLINE</text></svg>';" />
                 <div class="card-badges">
+                    ${safetyBadge}
                     ${countBadge}
+                    ${aqiBadge}
                     <div class="card-badge">Live</div>
                 </div>
             </div>
@@ -477,9 +409,119 @@ function renderGalleryView() {
                     <span>${cam.route}</span>
                 </div>
             </div>
+            <div class="fun-moment-box" id="fun-${cam.id}" style="${funDesc ? '' : 'display:none'}">🐾 ${funDesc}</div>
         `;
         cameraGallery.appendChild(card);
     });
+
+    // Kick off live image+count sync immediately after render
+    startLiveImageSync();
+}
+
+// Live Image + Count Sync: refreshes each visible card's image and re-analyzes vehicle count.
+// Cameras are staggered (1 per second) to avoid simultaneous API calls.
+function startLiveImageSync() {
+    if (currentFeed !== 'traffic') return;
+
+    filteredCameras.forEach((cam, idx) => {
+        if (cam.youtube_id) return;
+
+        setTimeout(() => {
+            const card = document.getElementById(`cam-card-${cam.id}`);
+            if (!card) return;
+
+            // ── Step 1: Refresh the image immediately (guaranteed to work) ──────────
+            const img = card.querySelector('.card-img');
+            const freshUrl = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
+            if (img) img.src = freshUrl;
+
+            // ── Step 2: Independently fetch the same frame → base64 → analyze ──────
+            // Run async separately so image refresh never gets blocked by analysis
+            (async () => {
+                try {
+                    const imgResp = await fetch(freshUrl);
+                    if (!imgResp.ok) return;
+                    const imgBlob = await imgResp.blob();
+
+                    // Convert blob → base64 (same bytes Gemini will analyze)
+                    const b64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(imgBlob);
+                    });
+
+                    // POST to /api/analyze_frame — Gemini sees the exact fetched frame
+                    const analyzeResp = await fetch('/api/analyze_frame', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ feed: 'traffic', prompt: 'count', image_b64: b64 })
+                    });
+                    if (!analyzeResp.ok) return;
+                    const data = await analyzeResp.json();
+                    if (data.status !== 'success') return;
+
+                    const summary = extractCountSummary(data.result);
+                    if (!summary) return;
+
+                    cam.latest_count_summary = summary;
+                    cam.latest_count_details = data.result;
+
+                    // Update card count badge
+                    const badgeContainer = card.querySelector('.card-badges');
+                    if (badgeContainer) {
+                        let countBadge = badgeContainer.querySelector('.count-badge');
+                        if (!countBadge) {
+                            countBadge = document.createElement('div');
+                            countBadge.className = 'count-badge traffic-accent';
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
+                            else badgeContainer.appendChild(countBadge);
+                        }
+                        countBadge.textContent = summary;
+                    }
+
+                    // Update sidebar list badge
+                    const listItem = document.getElementById(`cam-list-item-${cam.id}`);
+                    if (listItem) {
+                        const badgesWrapper = listItem.querySelector('.item-badges');
+                        if (badgesWrapper) {
+                            let countPill = badgesWrapper.querySelector('.list-count-badge');
+                            if (!countPill) {
+                                countPill = document.createElement('span');
+                                countPill.className = 'list-count-badge traffic-accent';
+                                badgesWrapper.appendChild(countPill);
+                            }
+                            countPill.textContent = summary;
+                        }
+                    }
+                } catch (e) {
+                    // Analysis failed — image already refreshed above, count stays as-is
+                }
+            })();
+
+        }, idx * 1000);
+    });
+}
+
+// Client-side count parser — mirrors the backend extract_count_summary logic
+function extractCountSummary(text) {
+    if (!text) return null;
+    const clean = text.replace('[SIMULATION]', '').trim();
+    // Primary: structured output "Total: N vehicles"
+    const totalMatch = clean.match(/Total:\s*(\d+)\s*vehicles?/i);
+    if (totalMatch) return `${totalMatch[1]} Vehicles`;
+    // Fallback: sum individual vehicle category counts
+    const vehicleMatches = clean.match(/(\d+)\s*(?:car|truck|motorcycle|vehicle)s?/gi);
+    if (vehicleMatches) {
+        const total = vehicleMatches.reduce((sum, m) => sum + parseInt(m.match(/\d+/)[0]), 0);
+        return `${total} Vehicles`;
+    }
+    const approxMatch = clean.match(/(?:approximately|count:?)\s*(\d+)/i);
+    if (approxMatch) return `${approxMatch[1]} Vehicles`;
+    const numMatch = clean.match(/(\d+)/);
+    if (numMatch) return `${numMatch[1]} Vehicles`;
+    return null;
 }
 
 // Focus camera item on sidebar, map and scroll card
@@ -491,15 +533,6 @@ function selectCamera(idx, panToMarker = true) {
     
     const cam = filteredCameras[idx];
     if (cam) {
-        const marker = markers[idx];
-        if (marker) {
-            if (panToMarker) {
-                map.panTo(marker.getPosition());
-                map.setZoom(currentFeed === 'zoo' ? 17 : 12);
-            }
-            google.maps.event.trigger(marker, 'click');
-        }
-        
         const card = document.getElementById(`cam-card-${idx}`);
         if (card) {
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -538,6 +571,7 @@ function openModal(idx) {
         modalImage.src = proxiedImg;
         modalImage.alt = cam.name;
     }
+    
     modalTitle.textContent = cam.name;
     modalRoute.textContent = cam.route || 'N/A';
     modalDirection.textContent = cam.direction || 'N/A';
@@ -552,6 +586,13 @@ function openModal(idx) {
 function closeModal() {
     cameraModal.classList.remove('show');
     document.body.style.overflow = 'auto';
+    
+    // Remove YouTube iframe if exists
+    const imgContainer = document.querySelector('.modal-img-container');
+    const iframe = imgContainer.querySelector('iframe');
+    if (iframe) iframe.remove();
+    
+    modalImage.style.display = 'block';
     modalImage.src = '';
     modalYoutubeFrame.src = '';
     modalYoutubeFrame.style.display = 'none';
@@ -580,7 +621,8 @@ async function runAIAnalysis() {
     runAnalysisBtn.style.opacity = '0.6';
 
     try {
-        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(cam.img_url)}&prompt=${objective}`;
+        const analyzeUrl = cam.youtube_id ? `https://www.youtube.com/watch?v=${cam.youtube_id}` : cam.img_url;
+        let url = `/api/analyze?feed=${currentFeed}&url=${encodeURIComponent(analyzeUrl)}&prompt=${objective}`;
         if (objective === 'custom') {
             url += `&custom_prompt=${encodeURIComponent(customPrompt)}`;
         }
@@ -641,62 +683,171 @@ async function updateCountsOnly() {
         
         const data = await response.json();
         const updatedCameras = data.cameras || [];
-        
-        // Sync local camera data cache
+        // Single pass: sync cache + refresh image on count change + update all badges
         updatedCameras.forEach(updatedCam => {
             const localCam = cameras.find(c => c.id === updatedCam.id);
             if (localCam) {
+                // Detect if CarCountAgent produced a new count since last poll
+                const countChanged = updatedCam.latest_count_summary &&
+                                    updatedCam.latest_count_summary !== localCam.latest_count_summary;
+
+                // Sync cache
                 localCam.latest_count_summary = updatedCam.latest_count_summary;
                 localCam.latest_count_details = updatedCam.latest_count_details;
+                localCam.safety_summary = updatedCam.safety_summary;
+                localCam.safety_details = updatedCam.safety_details;
+                localCam.air_quality_aqi = updatedCam.air_quality_aqi;
+                localCam.air_quality_summary = updatedCam.air_quality_summary;
+                localCam.air_quality_css_class = updatedCam.air_quality_css_class;
+                localCam.fun_description = updatedCam.fun_description;
+                localCam.fun_moment = updatedCam.fun_moment;
+
+                // When count changes → refresh card image so display matches the analyzed frame
+                if (countChanged && !updatedCam.youtube_id && updatedCam.img_url) {
+                    const syncCard = document.getElementById(`cam-card-${updatedCam.id}`);
+                    if (syncCard) {
+                        const syncImg = syncCard.querySelector('.card-img');
+                        if (syncImg) syncImg.src = `/api/proxy?url=${encodeURIComponent(updatedCam.img_url)}&t=${Date.now()}`;
+                    }
+                }
             }
-            
-            // Update card element count badge directly
+
+            // Update fun moment box
+            const funBox = document.getElementById(`fun-${updatedCam.id}`);
+            if (funBox && currentFeed === 'zoo') {
+                const desc = updatedCam.fun_description || '';
+                if (desc) {
+                    funBox.textContent = `🐾 ${desc}`;
+                    funBox.style.display = '';
+                } else {
+                    funBox.style.display = 'none';
+                }
+            }
+
+            // Update card element badges directly
             const card = document.getElementById(`cam-card-${updatedCam.id}`);
             if (card) {
                 const badgeContainer = card.querySelector('.card-badges');
                 if (badgeContainer) {
+                    // Safety badge
+                    let safetyBadge = badgeContainer.querySelector('.safety-badge');
+                    if (updatedCam.safety_summary) {
+                        if (!safetyBadge) {
+                            safetyBadge = document.createElement('div');
+                            badgeContainer.insertBefore(safetyBadge, badgeContainer.firstChild);
+                        }
+                        let safetyClass = 'safety-safe';
+                        if (updatedCam.safety_summary === 'Accident' || updatedCam.safety_summary === 'Collision') {
+                            safetyClass = 'safety-danger';
+                        } else if (updatedCam.safety_summary === 'Hazard') {
+                            safetyClass = 'safety-warning';
+                        }
+                        safetyBadge.className = `safety-badge ${safetyClass}`;
+                        safetyBadge.textContent = updatedCam.safety_summary;
+                    } else if (safetyBadge) {
+                        safetyBadge.remove();
+                    }
+
+                    // Count badge
                     let countBadge = badgeContainer.querySelector('.count-badge');
                     if (updatedCam.latest_count_summary) {
                         if (!countBadge) {
                             countBadge = document.createElement('div');
                             countBadge.className = `count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
-                            badgeContainer.insertBefore(countBadge, badgeContainer.firstChild);
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) badgeContainer.insertBefore(countBadge, liveBadge);
+                            else badgeContainer.appendChild(countBadge);
                         }
                         countBadge.textContent = updatedCam.latest_count_summary;
                     } else if (countBadge) {
                         countBadge.remove();
                     }
+
+                    // AQI badge
+                    let aqiBadge = badgeContainer.querySelector('.aqi-badge');
+                    if (updatedCam.air_quality_summary) {
+                        if (!aqiBadge) {
+                            aqiBadge = document.createElement('div');
+                            const liveBadge = badgeContainer.querySelector('.card-badge');
+                            if (liveBadge) badgeContainer.insertBefore(aqiBadge, liveBadge);
+                            else badgeContainer.appendChild(aqiBadge);
+                        }
+                        aqiBadge.className = `aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                        aqiBadge.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                        aqiBadge.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                    } else if (aqiBadge) {
+                        aqiBadge.remove();
+                    }
                 }
             }
-            
-            // Update sidebar item count badge directly
+
+            // Update sidebar item badges directly
             const listItem = document.getElementById(`cam-list-item-${updatedCam.id}`);
             if (listItem) {
-                let listBadge = listItem.querySelector('.list-count-badge');
-                if (updatedCam.latest_count_summary) {
-                    if (!listBadge) {
-                        const header = listItem.querySelector('.item-header');
-                        if (header) {
-                            listBadge = document.createElement('span');
-                            listBadge.className = `list-count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
-                            header.appendChild(listBadge);
+                const header = listItem.querySelector('.item-header');
+                if (header) {
+                    const badgesWrapper = header.querySelector('.item-badges');
+                    if (badgesWrapper) {
+                        // Safety pill
+                        let safetyPill = badgesWrapper.querySelector('.list-safety-badge');
+                        if (updatedCam.safety_summary) {
+                            if (!safetyPill) {
+                                safetyPill = document.createElement('span');
+                                badgesWrapper.insertBefore(safetyPill, badgesWrapper.firstChild);
+                            }
+                            let safetyClass = 'safety-safe';
+                            if (updatedCam.safety_summary === 'Accident' || updatedCam.safety_summary === 'Collision') {
+                                safetyClass = 'safety-danger';
+                            } else if (updatedCam.safety_summary === 'Hazard') {
+                                safetyClass = 'safety-warning';
+                            }
+                            safetyPill.className = `list-safety-badge ${safetyClass}`;
+                            safetyPill.textContent = updatedCam.safety_summary;
+                        } else if (safetyPill) {
+                            safetyPill.remove();
+                        }
+
+                        // Count pill
+                        let countPill = badgesWrapper.querySelector('.list-count-badge');
+                        if (updatedCam.latest_count_summary) {
+                            if (!countPill) {
+                                countPill = document.createElement('span');
+                                countPill.className = `list-count-badge ${currentFeed === 'zoo' ? 'zoo-accent' : 'traffic-accent'}`;
+                                badgesWrapper.appendChild(countPill);
+                            }
+                            countPill.textContent = updatedCam.latest_count_summary;
+                        } else if (countPill) {
+                            countPill.remove();
+                        }
+
+                        // AQI pill
+                        let aqiPill = badgesWrapper.querySelector('.list-aqi-badge');
+                        if (updatedCam.air_quality_summary) {
+                            if (!aqiPill) {
+                                aqiPill = document.createElement('span');
+                                badgesWrapper.appendChild(aqiPill);
+                            }
+                            aqiPill.className = `list-aqi-badge ${updatedCam.air_quality_css_class || ''}`;
+                            aqiPill.textContent = `AQI ${updatedCam.air_quality_aqi}`;
+                            aqiPill.title = `AQI: ${updatedCam.air_quality_aqi}`;
+                        } else if (aqiPill) {
+                            aqiPill.remove();
                         }
                     }
-                    if (listBadge) {
-                        listBadge.textContent = updatedCam.latest_count_summary;
-                    }
-                } else if (listBadge) {
-                    listBadge.remove();
                 }
             }
         });
-        
+
         // Update Last Refresh timestamp in UI header
         if (data.last_updated && lastUpdatedEl) {
             const date = new Date(data.last_updated * 1000);
             lastUpdatedEl.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
+        
+        // Update sidebar hazard alerts
+        updateSidebarAlerts();
     } catch (error) {
         console.error('Error in background count polling:', error);
     }
 }
+

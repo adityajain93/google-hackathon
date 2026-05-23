@@ -9,42 +9,8 @@ from inputs.base import BaseFeed
 
 class CaltransFeed(BaseFeed):
     def __init__(self):
-        self.mock_cams = [
-            {
-                'id': 'caltrans_mock_0',
-                'name': 'I-80 : Bay Bridge Toll Plaza',
-                'nearby': 'Oakland',
-                'img_url': 'https://images.unsplash.com/photo-1542362567-b07eac790acd?w=800&auto=format&fit=crop&q=80',
-                'county': 'Alameda',
-                'route': '80',
-                'direction': 'West',
-                'latitude': 37.8252,
-                'longitude': -122.3168
-            },
-            {
-                'id': 'caltrans_mock_1',
-                'name': 'US-101 : Golden Gate Bridge',
-                'nearby': 'San Francisco',
-                'img_url': 'https://images.unsplash.com/photo-1506012787146-f92b2d7d6d96?w=800&auto=format&fit=crop&q=80',
-                'county': 'San Francisco',
-                'route': '101',
-                'direction': 'North',
-                'latitude': 37.8199,
-                'longitude': -122.4783
-            },
-            {
-                'id': 'caltrans_mock_2',
-                'name': 'I-580 : Richmond-San Rafael Bridge',
-                'nearby': 'Richmond',
-                'img_url': 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&auto=format&fit=crop&q=80',
-                'county': 'Contra Costa',
-                'route': '580',
-                'direction': 'West',
-                'latitude': 37.9358,
-                'longitude': -122.4278
-            }
-        ]
-        self.active_cameras = self.mock_cams
+        self.active_cameras = []
+        self.first_update_done = False
         self.last_update_time = time.time()
         self.lock = threading.Lock()
         
@@ -116,10 +82,10 @@ class CaltransFeed(BaseFeed):
                     else:
                         other_cams.append(cam)
                 
-                cams_to_check = (target_cams + other_cams)[:250]
+                cams_to_check = (target_cams + other_cams)[:50]
                 
                 verified_cams = []
-                with ThreadPoolExecutor(max_workers=20) as executor:
+                with ThreadPoolExecutor(max_workers=50) as executor:
                     results = executor.map(self._check_single_camera, cams_to_check)
                     for res in results:
                         if res:
@@ -137,6 +103,20 @@ class CaltransFeed(BaseFeed):
                                     new_cam['latest_count_details'] = old_cam['latest_count_details']
                                 if 'last_analyzed_time' in old_cam:
                                     new_cam['last_analyzed_time'] = old_cam['last_analyzed_time']
+                                if 'safety_summary' in old_cam:
+                                    new_cam['safety_summary'] = old_cam['safety_summary']
+                                if 'safety_details' in old_cam:
+                                    new_cam['safety_details'] = old_cam['safety_details']
+                                if 'last_safety_analyzed_time' in old_cam:
+                                    new_cam['last_safety_analyzed_time'] = old_cam['last_safety_analyzed_time']
+                                if 'air_quality_aqi' in old_cam:
+                                    new_cam['air_quality_aqi'] = old_cam['air_quality_aqi']
+                                if 'air_quality_summary' in old_cam:
+                                    new_cam['air_quality_summary'] = old_cam['air_quality_summary']
+                                if 'air_quality_css_class' in old_cam:
+                                    new_cam['air_quality_css_class'] = old_cam['air_quality_css_class']
+                                if 'last_aqi_checked_time' in old_cam:
+                                    new_cam['last_aqi_checked_time'] = old_cam['last_aqi_checked_time']
                         self.active_cameras = verified_cams
                         self.last_update_time = time.time()
                     print(f"[CaltransFeed] Update complete. Found {len(self.active_cameras)} verified cameras.")
@@ -144,6 +124,8 @@ class CaltransFeed(BaseFeed):
                     print(f"[CaltransFeed] Verification yielded 0 cameras. Retaining existing active cameras.")
             except Exception as e:
                 print(f"[CaltransFeed] Error updating cameras: {e}")
+            finally:
+                self.first_update_done = True
             
             time.sleep(300)
 

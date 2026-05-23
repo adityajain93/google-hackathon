@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>California Live Traffic Cam Dashboard</title>
+    <meta name="description" content="Real-time road and traffic conditions across California using live Caltrans traffic camera feeds.">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header id="main-header">
+        <div class="logo-container">
+            <div class="logo-badge"></div>
+            <h1>California Traffic Cams</h1>
+        </div>
+        <div class="stats-container">
+            <div class="stat-item" id="stat-cameras">
+                Active Cameras: <span class="stat-val" id="active-count">0</span>
+            </div>
+            <div class="stat-item" id="stat-updated">
+                Last Updated: <span class="stat-val" id="last-updated-time">Never</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application Container -->
+    <main class="app-container" id="app-main">
+        
+        <!-- Sidebar Controls -->
+        <aside class="sidebar" id="app-sidebar">
+            <!-- Search -->
+            <div class="search-box">
+                <input type="text" id="search-input" class="search-input" placeholder="Search by road or nearby place..." aria-label="Search cameras">
+            </div>
+
+            <!-- Route Filter -->
+            <div class="filter-group">
+                <label for="route-filter" class="filter-label">Filter by Route</label>
+                <select id="route-filter" class="filter-select">
+                    <option value="all">All Routes</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <!-- County Filter -->
+            <div class="filter-group">
+                <label for="county-filter" class="filter-label">Filter by County</label>
+                <select id="county-filter" class="filter-select">
+                    <option value="all">All Counties</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <!-- List View -->
+            <div class="active-listing">
+                <div class="listing-title">Camera Directory</div>
+                <div id="camera-list" class="camera-list-item-container">
+                    <!-- Loaded dynamically -->
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                    <div class="shimmer" style="height: 60px; border-radius: 8px; margin-bottom: 0.50rem;"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Side Content -->
+        <div class="content-area" id="main-content">
+            
+            <!-- Map Section -->
+            <section class="map-section" aria-label="Interactive traffic camera map">
+                <div id="map"></div>
+            </section>
+
+            <!-- Card Gallery -->
+            <section class="gallery-section" aria-label="Live camera image cards">
+                <div class="gallery-header">
+                    <h2 class="gallery-title" id="gallery-header-title">Live Feeds</h2>
+                </div>
+                <div class="gallery-grid" id="camera-gallery">
+                    <!-- Cards loaded dynamically -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="camera-modal" role="dialog" aria-modal="true" aria-labelledby="modal-camera-title">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close-btn" aria-label="Close modal">&times;</button>
+            <div class="modal-img-container">
+                <img src="" alt="" class="modal-img" id="modal-image">
+            </div>
+            <div class="modal-body">
+                <h3 class="modal-title" id="modal-camera-title">Camera Title</h3>
+                <div class="modal-meta-grid">
+                    <div>
+                        <span class="modal-meta-label">Route:</span>
+                        <span class="modal-meta-value" id="modal-route">N/A</span>
+                    </div>
+                    <div>
+                        <span class="modal-meta-label">Direction:</span>
+                        <span class="modal-meta-value" id="modal-direction">N/A</span>
+                    </div>
+                    <div>
+                        <span class="modal-meta-label">County:</span>
+                        <span class="modal-meta-value" id="modal-county">N/A</span>
+                    </div>
+                    <div>
+                        <span class="modal-meta-label">Nearby Place:</span>
+                        <span class="modal-meta-value" id="modal-nearby">N/A</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Maps JS API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key={{GOOGLE_MAPS_API_KEY}}"></script>
+    <!-- Custom Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

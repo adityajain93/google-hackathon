@@ -378,35 +378,52 @@ function renderGalleryView() {
 // Live Image + Count Sync: refreshes each visible card's image and re-analyzes vehicle count.
 // Cameras are staggered (1 per second) to avoid simultaneous API calls.
 function startLiveImageSync() {
-    if (currentFeed !== 'traffic') return; // Only for traffic cameras
+    if (currentFeed !== 'traffic') return;
 
     filteredCameras.forEach((cam, idx) => {
-        if (cam.youtube_id) return; // Skip YouTube streams — they're live embeds
+        if (cam.youtube_id) return;
 
         setTimeout(async () => {
-            // 1. Refresh the card image with a new timestamp (gets a fresh CCTV frame)
             const card = document.getElementById(`cam-card-${cam.id}`);
             if (!card) return;
-            const img = card.querySelector('.card-img');
-            if (img) {
-                img.src = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
-            }
 
-            // 2. Trigger a fresh count analysis for this camera
             try {
-                const resp = await fetch(`/api/analyze?feed=traffic&url=${encodeURIComponent(cam.img_url)}&prompt=count`);
-                if (!resp.ok) return;
-                const data = await resp.json();
+                // Step 1: Fetch the fresh CCTV frame as a blob
+                const proxyUrl = `/api/proxy?url=${encodeURIComponent(cam.img_url)}&t=${Date.now()}`;
+                const imgResp = await fetch(proxyUrl);
+                if (!imgResp.ok) return;
+                const imgBlob = await imgResp.blob();
+
+                // Step 2: Convert to data URL — this is what we display AND analyze (same bytes)
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(imgBlob);
+                });
+
+                // Step 3: Update the card image immediately with the data URL
+                const img = card.querySelector('.card-img');
+                if (img) img.src = dataUrl;
+
+                // Step 4: POST the same base64 bytes to /api/analyze_frame — zero frame drift
+                const b64 = dataUrl.split(',')[1];
+                const analyzeResp = await fetch('/api/analyze_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feed: 'traffic', prompt: 'count', image_b64: b64 })
+                });
+                if (!analyzeResp.ok) return;
+                const data = await analyzeResp.json();
                 if (data.status !== 'success') return;
 
                 const summary = extractCountSummary(data.result);
                 if (!summary) return;
 
-                // Update local camera cache
                 cam.latest_count_summary = summary;
                 cam.latest_count_details = data.result;
 
-                // Update the count badge on the card directly
+                // Update card count badge
                 const badgeContainer = card.querySelector('.card-badges');
                 if (badgeContainer) {
                     let countBadge = badgeContainer.querySelector('.count-badge');
@@ -420,7 +437,7 @@ function startLiveImageSync() {
                     countBadge.textContent = summary;
                 }
 
-                // Update the sidebar list badge too
+                // Update sidebar list badge
                 const listItem = document.getElementById(`cam-list-item-${cam.id}`);
                 if (listItem) {
                     const badgesWrapper = listItem.querySelector('.item-badges');
@@ -435,9 +452,9 @@ function startLiveImageSync() {
                     }
                 }
             } catch (e) {
-                // Silently fail — count badge stays as-is
+                // Silently fail — card stays as-is
             }
-        }, idx * 1000); // Stagger: 1 second apart per camera
+        }, idx * 1000);
     });
 }
 

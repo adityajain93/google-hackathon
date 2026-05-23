@@ -219,6 +219,39 @@ class CameraProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
             return
 
+        # POST /api/analyze_frame — analyze the EXACT frame the browser already fetched.
+        # Accepts JSON: { feed, prompt, image_b64 }
+        # Passes the pre-fetched base64 bytes directly to Gemini — no re-download, no frame drift.
+        elif path == '/api/analyze_frame':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = json.loads(self.rfile.read(length))
+                feed_type = body.get('feed', 'traffic')
+                prompt_key = body.get('prompt', 'count')
+                img_b64 = body.get('image_b64', '')
+
+                if not img_b64:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'status': 'error', 'message': 'Missing image_b64'}).encode('utf-8'))
+                    return
+
+                result = analyzer.analyze_b64(feed_type, img_b64, prompt_key)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'success', 'result': result}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'error', 'message': str(e)}).encode('utf-8'))
+            return
+
         self.send_error(404)
 
 def start_server():

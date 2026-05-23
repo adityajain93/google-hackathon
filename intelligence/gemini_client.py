@@ -89,3 +89,41 @@ class GeminiClient:
         except Exception as e:
             print(f"[GeminiClient] Error in analyze_image: {e}")
             raise
+
+    def analyze_image_b64(self, img_b64, prompt):
+        """Sends pre-fetched base64 image bytes + prompt to Gemini. No re-download."""
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY is not configured in .env file.")
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt},
+                        {
+                            "inlineData": {
+                                "mimeType": "image/jpeg",
+                                "data": img_b64
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={self.api_key}"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=20) as response:
+            resp_data = json.loads(response.read().decode('utf-8'))
+
+        candidates = resp_data.get('candidates', [])
+        if candidates:
+            parts = candidates[0].get('content', {}).get('parts', [])
+            if parts:
+                return parts[0].get('text', 'No analysis returned from Gemini.')
+        return "Gemini API returned an empty response."

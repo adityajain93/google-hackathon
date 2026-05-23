@@ -25,6 +25,20 @@ class Analyzer:
         # Mock Simulation Fallback
         return self._generate_mock_response(feed_type, prompt_key, custom_prompt)
 
+    def analyze_b64(self, feed_type, img_b64, prompt_key, custom_prompt=None):
+        """
+        Analyzes a pre-fetched base64-encoded image. Same frame that the user sees.
+        Falls back to mock if Gemini is unavailable.
+        """
+        prompt = self._get_prompt_string(feed_type, prompt_key, custom_prompt)
+        if self.gemini_client.api_key:
+            try:
+                print(f"[Analyzer] Running Gemini b64 analysis (prompt: {prompt[:40]}...)")
+                return self.gemini_client.analyze_image_b64(img_b64, prompt)
+            except Exception as e:
+                print(f"[Analyzer] Gemini b64 analysis failed ({e}). Falling back to simulation...")
+        return self._generate_mock_response(feed_type, prompt_key, custom_prompt)
+
     def _get_prompt_string(self, feed_type, prompt_key, custom_prompt):
         if prompt_key == 'custom' and custom_prompt:
             return custom_prompt

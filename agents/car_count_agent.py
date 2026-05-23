@@ -5,26 +5,30 @@ import re
 def extract_count_summary(feed_type, text):
     if not text:
         return None
+    # Strip simulation prefix for parsing
+    clean = text.replace('[SIMULATION]', '').strip()
     try:
         if feed_type == 'traffic':
-            # Sum up counts of different vehicle categories if listed
-            # e.g., "Approximately 21 cars, 5 trucks, and 1 motorcycle"
-            numbers = re.findall(r'(\d+)\s*(?:car|truck|motorcycle|vehicle)s?', text, re.IGNORECASE)
+            # Primary: match structured output "Total: N vehicles"
+            match = re.search(r'Total:\s*(\d+)\s*vehicles?', clean, re.IGNORECASE)
+            if match:
+                return f"{match.group(1)} Vehicles"
+            # Fallback: sum explicit vehicle category counts
+            numbers = re.findall(r'(\d+)\s*(?:car|truck|motorcycle|vehicle)s?', clean, re.IGNORECASE)
             if numbers:
                 total = sum(int(n) for n in numbers)
                 return f"{total} Vehicles"
-            # Fallback to first digits after "approximately" or similar
-            match = re.search(r'(?:approximately|count:?)\s*(\d+)', text, re.IGNORECASE)
+            # Last resort: first number after 'approximately'
+            match = re.search(r'(?:approximately|count:?)\s*(\d+)', clean, re.IGNORECASE)
             if match:
                 return f"{match.group(1)} Vehicles"
         elif feed_type == 'zoo':
-            # "Animal Count: 2 active animal(s)"
-            match = re.search(r'(?:animal count|count:?)\s*(\d+)', text, re.IGNORECASE)
+            match = re.search(r'(?:animal count|total:|count:?)\s*(\d+)', clean, re.IGNORECASE)
             if match:
                 return f"{match.group(1)} Animals"
         
         # Generic fallback
-        match = re.search(r'(\d+)', text)
+        match = re.search(r'(\d+)', clean)
         if match:
             label = "Vehicles" if feed_type == 'traffic' else "Animals"
             return f"{match.group(1)} {label}"

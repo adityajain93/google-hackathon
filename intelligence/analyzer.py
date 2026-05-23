@@ -27,6 +27,20 @@ class Analyzer:
         # Mock Simulation Fallback
         return self._generate_mock_response(feed_type, prompt_key, custom_prompt)
 
+    def analyze_b64(self, feed_type, img_b64, prompt_key, custom_prompt=None):
+        """
+        Analyzes a pre-fetched base64-encoded image. Same frame that the user sees.
+        Falls back to mock if Gemini is unavailable.
+        """
+        prompt = self._get_prompt_string(feed_type, prompt_key, custom_prompt)
+        if self.gemini_client.api_key:
+            try:
+                print(f"[Analyzer] Running Gemini b64 analysis (prompt: {prompt[:40]}...)")
+                return self.gemini_client.analyze_image_b64(img_b64, prompt)
+            except Exception as e:
+                print(f"[Analyzer] Gemini b64 analysis failed ({e}). Falling back to simulation...")
+        return self._generate_mock_response(feed_type, prompt_key, custom_prompt)
+
     def _get_prompt_string(self, feed_type, prompt_key, custom_prompt):
         if prompt_key == 'custom' and custom_prompt:
             return custom_prompt
@@ -34,7 +48,7 @@ class Analyzer:
         presets = {
             'traffic': {
                 'describe': "Describe the current traffic conditions, flow, and weather visibility in this traffic camera frame. Keep it concise.",
-                'count': "Count the approximate number of vehicles (cars, trucks, motorcycles) visible in this image. Give a clear count.",
+                'count': "Count every vehicle visible in this image (cars, trucks, motorcycles, vans, buses). Be precise. Output exactly one line in this format: 'Total: N vehicles' where N is the exact number you count. Do not approximate.",
                 'hazard': "Look closely at the highway lane. Check if there are any accidents, stalled vehicles, debris, construction, or hazards. Report what you find.",
                 'safety': "Analyze this traffic camera frame. Check if there is a collision, accident, vehicle breakdown, lane blockage, or hazard in that area. If there is, output 'ACCIDENT ALERT', 'COLLISION ALERT' or 'HAZARD ALERT' followed by a very brief explanation (e.g., 'COLLISION ALERT: minor crash on left lane'). If the roadway/intersection looks clear and traffic is flowing normally, output 'SAFE' followed by a brief explanation (e.g., 'SAFE: clear traffic'). Keep your response under 10 words."
             },
@@ -64,9 +78,8 @@ class Analyzer:
                 ]
                 return f"[SIMULATION] {random.choice(conditions)}"
             elif prompt_key == 'count':
-                cars = random.randint(3, 28)
-                trucks = random.randint(0, 5)
-                return f"[SIMULATION] Vehicle Count: Approximately {cars} cars, {trucks} trucks, and 1 motorcycle detected in the frame. Traffic density is {'high' if cars > 18 else 'moderate' if cars > 8 else 'low'}."
+                total = random.randint(4, 32)
+                return f"[SIMULATION] Total: {total} vehicles"
             elif prompt_key == 'hazard':
                 hazards = [
                     "No hazards detected. Lanes are clear, and traffic flow is normal.",
